@@ -1,0 +1,345 @@
+/* ===== カスタムフォント ===== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+
+/* ===== デザイントークン（ライトモード / Japanese Swiss） ===== */
+:root {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* 背景 */
+  --bg-page: #FAF8F5;
+  --bg-card: #FFFFFF;
+  --bg-muted: #F5F3F0;
+  --bg-tab-bar: #ECEAE6;
+  --bg-tab-active: #FFFFFF;
+
+  /* テキスト */
+  --text-primary: #1C1C1C;
+  --text-secondary: #6B6B6B;
+  --text-muted: #9A9A9A;
+
+  /* ボーダー */
+  --border-default: #E8E5E0;
+  --border-strong: #D4D0C8;
+
+  /* アクセント */
+  --accent-primary: #1E3A5F;
+  --accent-primary-soft: rgba(30, 58, 95, 0.08);
+  --accent-green: #3D6B4F;
+  --accent-purple: #8B6B8B;
+  --accent-red: #8B4049;
+
+  /* ノイズチャンネルカラー */
+  --noise-brown: #1E3A5F;
+  --noise-pink: #3D6B4F;
+  --noise-white: #8B6B8B;
+  --noise-sub: #8B4049;
+
+  /* シャドウ */
+  --shadow-card: 0 2px 12px rgba(28, 28, 28, 0.06);
+  --shadow-btn: 0 8px 24px rgba(30, 58, 95, 0.30);
+  --shadow-thumb: 0 4px 10px rgba(30, 58, 95, 0.20);
+
+  /* 角丸 */
+  --radius-card: 16px;
+  --radius-btn: 14px;
+  --radius-tab: 24px;
+  --radius-pill: 999px;
+
+  /* トランジション（Apple HIGライクなスプリングカーブ寄りの表現） */
+  --transition-fast: 150ms cubic-bezier(0.25, 0.1, 0.25, 1);
+  --transition-base: 300ms cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* ===== ダークモードトークン ===== */
+[data-theme="dark"] {
+  --bg-page: #1A1918;
+  --bg-card: #252320;
+  --bg-muted: #2E2B28;
+  --bg-tab-bar: #2E2B28;
+  --bg-tab-active: #3A3733;
+
+  --text-primary: #F5F3F0;
+  --text-secondary: #9A9A8A;
+  --text-muted: #6B6B60;
+
+  --border-default: #3A3733;
+  --border-strong: #4A4744;
+
+  --accent-primary: #5B8FBF;
+  --accent-primary-soft: rgba(91, 143, 191, 0.12);
+  --accent-green: #5A9E72;
+  --accent-purple: #A88BAA;
+  --accent-red: #AA7B80;
+
+  --noise-brown: #5B8FBF;
+  --noise-pink: #8BA88B;
+  --noise-white: #A88BAA;
+  --noise-sub: #AA7B80;
+
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.30);
+  --shadow-btn: 0 8px 24px rgba(91, 143, 191, 0.25);
+  --shadow-thumb: 0 4px 10px rgba(91, 143, 191, 0.20);
+}
+
+/* ===== ベーススタイル ===== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  /* モバイルでのタップハイライト除去 */
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  /* dvh: モバイルブラウザのアドレスバーを考慮した動的ビューポート高さ */
+  height: 100%;
+  height: 100dvh;
+}
+
+body {
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  /* iOS スクロールバウンスを防ぐ */
+  overscroll-behavior: none;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* iOS ノッチ（セーフエリア）を考慮 */
+  padding-top: env(safe-area-inset-top);
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--transition-base), color var(--transition-base);
+  /* タッチデバイスでのダブルタップズーム防止 */
+  touch-action: manipulation;
+}
+
+/* ===== カード ===== */
+.nm-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.nm-card-muted {
+  background: var(--bg-muted);
+  border-radius: var(--radius-card);
+}
+
+/* ===== タブバー ===== */
+.nm-tab-bar {
+  background: var(--bg-tab-bar);
+  border-radius: var(--radius-tab);
+  padding: 4px;
+  display: flex;
+  gap: 4px;
+}
+
+.nm-tab {
+  flex: 1;
+  height: 44px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: none;
+  background: transparent;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.nm-tab.active {
+  background: var(--bg-tab-active);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: var(--shadow-card);
+}
+
+/* ===== プライマリボタン ===== */
+.nm-btn-primary {
+  background: var(--accent-primary);
+  color: #FFFFFF;
+  border-radius: var(--radius-btn);
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nm-btn-primary:active {
+  opacity: 0.85;
+  transform: scale(0.98);
+}
+
+/* ===== 再生ボタン ===== */
+.nm-play-btn {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-btn);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.nm-play-btn:active {
+  transform: scale(0.92);
+  box-shadow: none;
+}
+
+/* ===== 水平スライダー（マスターボリューム用） ===== */
+.nm-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border-default);
+  cursor: pointer;
+  outline: none;
+}
+
+.nm-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid var(--accent-primary);
+  box-shadow: var(--shadow-thumb);
+  cursor: grab;
+  transition: transform var(--transition-fast);
+}
+
+.nm-slider::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+  cursor: grabbing;
+}
+
+.nm-slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid var(--accent-primary);
+  box-shadow: var(--shadow-thumb);
+  cursor: grab;
+}
+
+/* ===== バッジ ===== */
+.nm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.nm-badge-active {
+  background: var(--accent-green);
+  color: #FFFFFF;
+}
+
+/* ===== テーマ切り替えボタン ===== */
+.nm-theme-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-muted);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nm-theme-toggle:active {
+  background: var(--border-default);
+}
+
+/* ===== スクロールバー ===== */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 2px;
+}
+
+/* ===== アニメーション ===== */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  /* 少しだけ弾力を持たせたフェードイン */
+  animation: fade-in 0.3s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s cubic-bezier(0.25, 1, 0.5, 1) both;
+}

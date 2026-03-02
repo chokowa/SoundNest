@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 背景（iOSやPWAアプリアイコンのベゼル用に角丸指定） -->
+  <rect width="512" height="512" rx="114" fill="#1A1918"/>
+  
+  <!-- 音の波形（サウンドマスキングを象徴するフラットでモダンな波形） -->
+  <rect x="236" y="140" width="40" height="232" rx="20" fill="#FAF8F5"/>
+  <rect x="306" y="200" width="40" height="112" rx="20" fill="#FAF8F5" opacity="0.8"/>
+  <rect x="166" y="216" width="40" height="80" rx="20" fill="#FAF8F5" opacity="0.8"/>
+  <rect x="376" y="240" width="40" height="32" rx="16" fill="#FAF8F5" opacity="0.6"/>
+  <rect x="96"  y="244" width="40" height="24" rx="12" fill="#FAF8F5" opacity="0.6"/>
+</svg>

@@ -1,0 +1,642 @@
+/* eslint-disable react-refresh/only-export-components */
+import {
+    createContext,
+    useContext,
+    useReducer,
+    useRef,
+    useCallback,
+    useEffect,
+    type ReactNode,
+} from 'react';
+import type {
+    AudioEngineState,
+    AudioEngineAction,
+    NoiseBlend,
+    EQSettings,
+    HarmonicExciterSettings,
+    FadeSettings,
+    MasterSettings,
+    SoundscapeLayer,
+    CustomFileEntry,
+    Preset,
+    ToneId,
+} from '../types/audio';
+import { TONE_SETTINGS } from './tones';
+import { FilterChain } from './FilterChain';
+import { HarmonicExciter } from './HarmonicExciter';
+import { MasterBus } from './MasterBus';
+import { FadeController } from './FadeController';
+import { BUILT_IN_PRESETS, DEFAULT_PRESET_ID, findPresetById, loadCustomPresets, saveCustomPresets } from './presets';
+import { useState } from 'react';
+
+// ===== localStorage キー =====
+const STORAGE_KEY = 'soundnest-state';
+
+// ===== 初期状態 =====
+const defaultPreset = findPresetById(DEFAULT_PRESET_ID)!;
+
+const initialState: AudioEngineState = {
+    isPlaying: false,
+    blend: { ...defaultPreset.blend, white: defaultPreset.blend.white ?? 0, sub: defaultPreset.blend.sub ?? 0 },
+    eq: { ...defaultPreset.eq },
+    harmonicExciter: { ...defaultPreset.harmonicExciter },
+    fade: { duration: 5 },
+    master: { volume: 0.5 },
+    activePresetId: DEFAULT_PRESET_ID,
+    activeToneId: defaultPreset.toneId ?? null,
+    soundscapeLayers: [],
+    customFiles: [],
+};
+
+// ===== Reducer =====
+function audioReducer(state: AudioEngineState, action: AudioEngineAction): AudioEngineState {
+    switch (action.type) {
+        case 'SET_PLAYING':
+            return { ...state, isPlaying: action.payload };
+        case 'SET_BLEND':
+            return { ...state, blend: { ...state.blend, ...action.payload }, activePresetId: null };
+        case 'SET_EQ':
+            return { ...state, eq: { ...state.eq, ...action.payload }, activePresetId: null, activeToneId: null };
+        case 'SET_HARMONIC_EXCITER':
+            return {
+                ...state,
+                harmonicExciter: { ...state.harmonicExciter, ...action.payload },
+                activePresetId: null,
+                activeToneId: null,
+            };
+        case 'SET_TONE': {
+            const tone = TONE_SETTINGS[action.payload];
+            return {
+                ...state,
+                eq: { ...tone.eq },
+                harmonicExciter: { ...tone.harmonicExciter },
+                activeToneId: action.payload,
+                activePresetId: null,
+            };
+        }
+        case 'SET_FADE':
+            return { ...state, fade: { ...state.fade, ...action.payload } };
+        case 'SET_MASTER':
+            return { ...state, master: { ...state.master, ...action.payload }, activePresetId: null };
+        case 'APPLY_PRESET':
+            return {
+                ...state,
+                blend: { ...action.payload.blend },
+                eq: { ...action.payload.eq },
+                harmonicExciter: { ...action.payload.harmonicExciter },
+                activePresetId: action.payload.id,
+                activeToneId: action.payload.toneId ?? null,
+            };
+        case 'ADD_SOUNDSCAPE_LAYER':
+            return {
+                ...state,
+                soundscapeLayers: [...state.soundscapeLayers, action.payload],
+            };
+        case 'REMOVE_SOUNDSCAPE_LAYER':
+            return {
+                ...state,
+                soundscapeLayers: state.soundscapeLayers.filter(l => l.id !== action.payload),
+            };
+        case 'UPDATE_SOUNDSCAPE_LAYER':
+            return {
+                ...state,
+                soundscapeLayers: state.soundscapeLayers.map(l =>
+                    l.id === action.payload.id ? { ...l, ...action.payload } : l
+                ),
+            };
+        case 'ADD_CUSTOM_FILE':
+            return {
+                ...state,
+                customFiles: [...(state.customFiles ?? []), action.payload],
+            };
+        case 'REMOVE_CUSTOM_FILE':
+            return {
+                ...state,
+                customFiles: (state.customFiles ?? []).filter(f => f.id !== action.payload),
+            };
+        case 'LOAD_STATE':
+            return { ...action.payload, customFiles: action.payload.customFiles ?? [] };
+        default:
+            return state;
+    }
+}
+
+// ===== Context 型定義 =====
+interface AudioEngineContextValue {
+    state: AudioEngineState;
+    // 操作メソッド
+    play: () => Promise<void>;
+    stop: () => Promise<void>;
+    setBlend: (blend: Partial<NoiseBlend>) => void;
+    setEQ: (eq: Partial<EQSettings>) => void;
+    setHarmonicExciter: (settings: Partial<HarmonicExciterSettings>) => void;
+    setTone: (toneId: ToneId) => void;
+    setFade: (fade: Partial<FadeSettings>) => void;
+    setMaster: (master: Partial<MasterSettings>) => void;
+    applyPreset: (preset: Preset) => void;
+    addSoundscapeFromFile: (file: File) => void;
+    addSoundscapeLayer: (layer: SoundscapeLayer) => void;
+    removeSoundscape: (id: string) => void;
+    updateSoundscape: (id: string, updates: Partial<SoundscapeLayer>) => void;
+    getRMSLevel: () => number;
+    presets: Preset[];
+    saveCustomPreset: (preset: Preset) => void;
+    deleteCustomPreset: (id: string) => void;
+    addCustomFile: (entry: CustomFileEntry) => void;
+    removeCustomFile: (id: string) => void;
+}
+
+const AudioEngineCtx = createContext<AudioEngineContextValue | null>(null);
+
+// ===== Provider =====
+export function AudioEngineProvider({ children }: { children: ReactNode }) {
+    const [customPresets, setCustomPresets] = useState<Preset[]>(loadCustomPresets);
+
+    // 保存された状態を復元
+    const loadedState = (() => {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved) as AudioEngineState;
+                // 不正な値のバリデーション・フォールバック
+                if (!parsed.blend || typeof parsed.blend.brown !== 'number') {
+                    throw new Error('Invalid state'); // catchに落として初期化させる
+                }
+                // 存在しないプリセットIDが保存されている場合はnullにフォールバック（状態は保持）
+                if (parsed.activePresetId && !findPresetById(parsed.activePresetId)) {
+                    parsed.activePresetId = null;
+                }
+                // 再生状態と一時ファイルはリセット
+                return { ...parsed, isPlaying: false, soundscapeLayers: [], customFiles: [] };
+            }
+        } catch {
+            console.warn('保存された状態が破損していたため、初期状態にリセットしました。');
+        }
+        return initialState;
+    })();
+
+    const [state, dispatch] = useReducer(audioReducer, loadedState);
+
+    // Web Audio API ノード群 (ref で管理、再レンダリング不要)
+    const audioCtxRef = useRef<AudioContext | null>(null);
+    const workletNodesRef = useRef<Map<string, AudioWorkletNode>>(new Map());
+    const filterChainRef = useRef<FilterChain | null>(null);
+    const harmonicExciterRef = useRef<HarmonicExciter | null>(null);
+    const masterBusRef = useRef<MasterBus | null>(null);
+    const fadeControllerRef = useRef<FadeController | null>(null);
+    const mixerGainRef = useRef<GainNode | null>(null);
+    const soundscapeSourcesRef = useRef<Map<string, { source: MediaElementAudioSourceNode; gain: GainNode; element: HTMLAudioElement }>>(new Map());
+
+    // === バックグラウンド再生維持（iOS対策） ===
+    const backgroundAudioRef = useRef<HTMLAudioElement | null>(null);
+
+    // === 状態の永続化 ===
+    useEffect(() => {
+        // 再生状態と一時ファイル群は保存しない
+        const toSave = { ...state, isPlaying: false, soundscapeLayers: [], customFiles: [] };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    }, [state]);
+
+    // === AudioContext の初期化 ===
+    const ensureAudioContext = useCallback(async (): Promise<AudioContext> => {
+        if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+            if (audioCtxRef.current.state === 'suspended') {
+                await audioCtxRef.current.resume();
+            }
+            return audioCtxRef.current;
+        }
+
+        const ctx = new AudioContext();
+
+        // AudioWorklet モジュールの登録
+        await ctx.audioWorklet.addModule('/worklets/white-noise-processor.js');
+        await ctx.audioWorklet.addModule('/worklets/pink-noise-processor.js');
+        await ctx.audioWorklet.addModule('/worklets/brown-noise-processor.js');
+        await ctx.audioWorklet.addModule('/worklets/sub-bass-processor.js');
+
+        // ミキサーゲインノード（3つのWorkletをまとめる）
+        const mixerGain = ctx.createGain();
+        mixerGainRef.current = mixerGain;
+
+        // フィルタチェーン
+        const filterChain = new FilterChain(ctx);
+        filterChainRef.current = filterChain;
+
+        // ハーモニックエキサイター
+        const exciter = new HarmonicExciter(ctx);
+        harmonicExciterRef.current = exciter;
+
+        // フェードコントローラ
+        const fade = new FadeController(ctx);
+        fadeControllerRef.current = fade;
+
+        // マスターバス
+        const master = new MasterBus(ctx);
+        masterBusRef.current = master;
+
+        // シグナルフロー接続:
+        // [WorkletNodes] → mixerGain → filterChain → exciter → fade → masterBus → destination
+        mixerGain.connect(filterChain.input);
+        filterChain.output.connect(exciter.input);
+        exciter.output.connect(fade.input);
+        fade.output.connect(master.input);
+
+        // AudioWorkletNode の作成（4チャンネル）
+        const noiseTypes = ['pink', 'brown', 'white', 'sub'] as const;
+        const workletNames: Record<string, string> = {
+            pink: 'pink-noise-processor',
+            brown: 'brown-noise-processor',
+            white: 'white-noise-processor',
+            sub: 'sub-bass-processor',
+        };
+        for (const type of noiseTypes) {
+            const node = new AudioWorkletNode(ctx, workletNames[type]);
+            node.connect(mixerGain);
+            workletNodesRef.current.set(type, node);
+        }
+
+        audioCtxRef.current = ctx;
+        return ctx;
+    }, []);
+
+    // === オーディオパラメータの同期 ===
+    const syncAudioParams = useCallback((s: AudioEngineState) => {
+        // ノイズブレンド（4チャンネル）
+        const blendMap: Record<string, number> = {
+            pink: s.blend.pink,
+            brown: s.blend.brown,
+            white: s.blend.white ?? 0,
+            sub: s.blend.sub ?? 0,
+        };
+        for (const [type, gain] of Object.entries(blendMap)) {
+            const node = workletNodesRef.current.get(type);
+            if (node) {
+                const param = node.parameters.get('gain');
+                if (param) {
+                    const now = audioCtxRef.current!.currentTime;
+                    // クリックノイズ防止: 現在のスケジュールをキャンセルし現在位置から開始
+                    param.cancelScheduledValues(now);
+                    param.setValueAtTime(param.value, now);
+                    param.setTargetAtTime(gain, now, 0.05);
+                }
+            }
+        }
+
+        // EQ
+        filterChainRef.current?.setAll(s.eq.lowShelfGain, s.eq.peakGain, s.eq.lowpassFrequency);
+
+        // ハーモニックエキサイター
+        harmonicExciterRef.current?.setEnabled(s.harmonicExciter.enabled);
+        harmonicExciterRef.current?.setMix(s.harmonicExciter.mix);
+
+        // フェード
+        fadeControllerRef.current?.setDuration(s.fade.duration);
+
+        // マスター
+        masterBusRef.current?.setVolume(s.master.volume);
+    }, []);
+
+    // === 状態変更時にオーディオパラメータを同期 ===
+    useEffect(() => {
+        if (state.isPlaying && audioCtxRef.current) {
+            syncAudioParams(state);
+        }
+    }, [state, syncAudioParams]);
+
+    // === 再生 ===
+    const play = useCallback(async () => {
+        const ctx = await ensureAudioContext();
+        if (ctx.state === 'suspended') {
+            await ctx.resume();
+        }
+
+        // iOSバックグラウンド再生維持ハック：ユーザーアクション起因でメディア要素を再生する
+        if (!backgroundAudioRef.current) {
+            const audio = new Audio();
+            // 超短い無音のWAVデータURI（44バイト）
+            audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+            audio.loop = true;
+            audio.crossOrigin = 'anonymous';
+            audio.style.display = 'none';
+            document.body.appendChild(audio);
+            backgroundAudioRef.current = audio;
+        }
+        backgroundAudioRef.current.play().catch(() => { /* 無視 */ });
+
+        syncAudioParams(state);
+        dispatch({ type: 'SET_PLAYING', payload: true });
+        await fadeControllerRef.current?.fadeIn();
+    }, [ensureAudioContext, syncAudioParams, state]);
+
+    // === 停止 ===
+    const stop = useCallback(async () => {
+        if (fadeControllerRef.current) {
+            await fadeControllerRef.current.fadeOut();
+        }
+        if (backgroundAudioRef.current) {
+            backgroundAudioRef.current.pause();
+        }
+        dispatch({ type: 'SET_PLAYING', payload: false });
+    }, []);
+
+    // === 各種セッター ===
+    const setBlend = useCallback((blend: Partial<NoiseBlend>) => {
+        dispatch({ type: 'SET_BLEND', payload: blend });
+    }, []);
+
+    const setEQ = useCallback((eq: Partial<EQSettings>) => {
+        dispatch({ type: 'SET_EQ', payload: eq });
+    }, []);
+
+    const setHarmonicExciter = useCallback((settings: Partial<HarmonicExciterSettings>) => dispatch({ type: 'SET_HARMONIC_EXCITER', payload: settings }), []);
+    const setTone = useCallback((toneId: ToneId) => dispatch({ type: 'SET_TONE', payload: toneId }), []);
+    const setFade = useCallback((fade: Partial<FadeSettings>) => dispatch({ type: 'SET_FADE', payload: fade }), []);
+
+    const setMaster = useCallback((master: Partial<MasterSettings>) => {
+        dispatch({ type: 'SET_MASTER', payload: master });
+    }, []);
+
+    const applyPreset = useCallback((preset: Preset) => {
+        dispatch({ type: 'APPLY_PRESET', payload: preset });
+    }, []);
+
+    // === Media Session API 連携（ロック画面コントロール） ===
+    useEffect(() => {
+        if (!('mediaSession' in navigator)) return;
+
+        if (state.isPlaying) {
+            navigator.mediaSession.playbackState = 'playing';
+
+            // 現在のプリセット名を取得（カスタムの場合は「Your Custom Mix」）
+            let title = 'Your Custom Mix';
+            if (state.activePresetId) {
+                const p = BUILT_IN_PRESETS.find(p => p.id === state.activePresetId);
+                if (p) title = p.name;
+            }
+
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: title,
+                artist: 'Noisemamire',
+                album: 'サウンドマスキング',
+                artwork: [
+                    // アプリアイコンが存在する前提（後で設定）
+                    { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+                    { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }
+                ]
+            });
+
+            // ロック画面からの操作ハンドラ
+            navigator.mediaSession.setActionHandler('play', () => play());
+            navigator.mediaSession.setActionHandler('pause', () => stop());
+            navigator.mediaSession.setActionHandler('stop', () => stop());
+        } else {
+            navigator.mediaSession.playbackState = 'paused';
+            // 再生停止中はハンドラを解除しない（ロック画面から再開できるようにするため）
+        }
+    }, [state.isPlaying, state.activePresetId, play, stop]);
+
+    const connectSoundscapeLayer = useCallback((layer: SoundscapeLayer) => {
+        if (!audioCtxRef.current || !fadeControllerRef.current) return;
+        const ctx = audioCtxRef.current;
+
+        // クロスフェードループ用の設定（秒）
+        const CROSSFADE_DURATION = 1.0;
+
+        // 音量コントロール用ゲイン
+        const masterGain = ctx.createGain();
+        masterGain.gain.value = layer.volume;
+        masterGain.connect(fadeControllerRef.current.input);
+
+        // 2つのAudio要素と関連ノードを保持する
+        const createPlayer = () => {
+            const audio = new Audio(layer.src);
+            audio.crossOrigin = 'anonymous';
+            // ループは手動で制御するため false にする
+            audio.loop = false;
+
+            const source = ctx.createMediaElementSource(audio);
+            const fadeGain = ctx.createGain();
+            fadeGain.gain.value = 0; // 初期状態は無音（フェードイン用）
+            source.connect(fadeGain);
+            fadeGain.connect(masterGain);
+
+            return { audio, source, fadeGain };
+        };
+
+        const playerA = createPlayer();
+        const playerB = createPlayer();
+
+        let activePlayer = playerA;
+        let inactivePlayer = playerB;
+        let isStopped = false;
+
+        // 再生スケジューリング関数
+        const scheduleNextLoop = () => {
+            if (isStopped) return;
+
+            // アクティブなプレイヤーが終了のCROSSFADE_DURATION秒前になったら、
+            // インアクティブなプレイヤーをフェードイン再生し始める
+            const onTimeUpdate = () => {
+                if (isStopped) return;
+                // 再生時間が取得可能で、残り時間がクロスフェード時間以下になったら
+                if (activePlayer.audio.duration &&
+                    (activePlayer.audio.duration - activePlayer.audio.currentTime) <= CROSSFADE_DURATION) {
+
+                    // イベントリスナーを解除して重複実行を防ぐ
+                    activePlayer.audio.removeEventListener('timeupdate', onTimeUpdate);
+
+                    // 次のプレイヤーの準備と再生
+                    inactivePlayer.audio.currentTime = 0;
+
+                    // ※ブラウザの自動再生ポリシー対策として、currentTime 設定後少し待つ場合もあるが
+                    // ユーザーインタラクション後であれば基本的には issue になりにくい
+                    inactivePlayer.audio.play().catch(console.error);
+
+                    // クロスフェードのスケジュール
+                    const now = ctx.currentTime;
+                    // 次のプレイヤーをフェードイン
+                    inactivePlayer.fadeGain.gain.setValueAtTime(0, now);
+                    inactivePlayer.fadeGain.gain.linearRampToValueAtTime(1, now + CROSSFADE_DURATION);
+
+                    // 現在のプレイヤーをフェードアウト
+                    activePlayer.fadeGain.gain.setValueAtTime(1, now);
+                    activePlayer.fadeGain.gain.linearRampToValueAtTime(0, now + CROSSFADE_DURATION);
+
+                    // 役割交代
+                    const temp = activePlayer;
+                    activePlayer = inactivePlayer;
+                    inactivePlayer = temp;
+
+                    // 新しいアクティブプレイヤーに次のイベントリスナーを仕掛ける
+                    activePlayer.audio.addEventListener('timeupdate', scheduleNextLoop);
+                }
+            };
+
+            // 初期状態または役割交代後にリスナーを登録
+            activePlayer.audio.addEventListener('timeupdate', onTimeUpdate);
+        };
+
+        // 初期再生の開始
+        activePlayer.fadeGain.gain.value = 1; // 最初はフェードイン完了状態から始める
+        activePlayer.audio.play().catch(console.error);
+
+        // メタデータ（Audioオブジェクトのduration等）がロードされたらスケジューリング開始
+        activePlayer.audio.addEventListener('loadedmetadata', () => {
+            scheduleNextLoop();
+        });
+
+        // 停止などのクリーンアップ用に複数要素をまとめたカスタムオブジェクトを保持
+        soundscapeSourcesRef.current.set(layer.id, {
+            source: playerA.source, // 型互換性のためどれか一つを渡す（実際は使われないことが多い）
+            gain: masterGain,
+            // Audio要素の制御用オブジェクトを拡張して持たせる(stopなどのカスタムメソッド)
+            element: {
+                pause: () => {
+                    isStopped = true;
+                    playerA.audio.pause();
+                    playerB.audio.pause();
+                },
+                play: () => {
+                    if (isStopped) {
+                        isStopped = false;
+                        activePlayer.audio.play().catch(console.error);
+                        activePlayer.audio.addEventListener('timeupdate', scheduleNextLoop);
+                    }
+                },
+                get src() { return layer.src; } // 型合わせ
+            } as unknown as HTMLAudioElement
+        });
+    }, []);
+
+    // === サウンドスケープ: ローカルファイル読み込み ===
+    const addSoundscapeFromFile = useCallback((file: File) => {
+        const id = `soundscape-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const objectUrl = URL.createObjectURL(file);
+        const layer: SoundscapeLayer = {
+            id,
+            name: file.name.replace(/\.[^.]+$/, ''), // 拡張子を除去
+            src: objectUrl,
+            volume: 0.3,
+            loop: true,
+        };
+        dispatch({ type: 'ADD_SOUNDSCAPE_LAYER', payload: layer });
+
+        // 再生中の場合、即座にオーディオグラフに接続
+        if (audioCtxRef.current && state.isPlaying) {
+            connectSoundscapeLayer(layer);
+        }
+    }, [state.isPlaying, connectSoundscapeLayer]);
+
+    // === サウンドスケープ: 指定IDでレイヤーを直接追加 ===
+    const addSoundscapeLayer = useCallback((layer: SoundscapeLayer) => {
+        dispatch({ type: 'ADD_SOUNDSCAPE_LAYER', payload: layer });
+        // 再生中の場合、即座にオーディオグラフに接続
+        if (audioCtxRef.current && state.isPlaying) {
+            connectSoundscapeLayer(layer);
+        }
+    }, [state.isPlaying, connectSoundscapeLayer]);
+
+    // 再生状態変更時、サウンドスケープの再生/停止を連動
+    useEffect(() => {
+        if (state.isPlaying) {
+            for (const layer of state.soundscapeLayers) {
+                if (!soundscapeSourcesRef.current.has(layer.id)) {
+                    connectSoundscapeLayer(layer);
+                }
+            }
+        } else {
+            for (const [, { element }] of soundscapeSourcesRef.current) {
+                element.pause();
+            }
+        }
+    }, [state.isPlaying, state.soundscapeLayers, connectSoundscapeLayer]);
+
+    const removeSoundscape = useCallback((id: string) => {
+        const entry = soundscapeSourcesRef.current.get(id);
+        if (entry) {
+            entry.element.pause();
+            entry.source.disconnect();
+            entry.gain.disconnect();
+            URL.revokeObjectURL(entry.element.src);
+            soundscapeSourcesRef.current.delete(id);
+        }
+        dispatch({ type: 'REMOVE_SOUNDSCAPE_LAYER', payload: id });
+    }, []);
+
+    const updateSoundscape = useCallback((id: string, updates: Partial<SoundscapeLayer>) => {
+        dispatch({ type: 'UPDATE_SOUNDSCAPE_LAYER', payload: { id, ...updates } });
+        // 音量変更の即時反映
+        if (updates.volume !== undefined) {
+            const entry = soundscapeSourcesRef.current.get(id);
+            if (entry && audioCtxRef.current) {
+                entry.gain.gain.setTargetAtTime(updates.volume, audioCtxRef.current.currentTime, 0.05);
+            }
+        }
+    }, []);
+
+    const getRMSLevel = useCallback((): number => {
+        return masterBusRef.current?.getRMSLevel() ?? 0;
+    }, []);
+
+    const saveCustomPreset = useCallback((preset: Preset) => {
+        setCustomPresets(prev => {
+            const next = [...prev, preset];
+            saveCustomPresets(next);
+            return next;
+        });
+    }, []);
+
+    const deleteCustomPreset = useCallback((id: string) => {
+        setCustomPresets(prev => {
+            const next = prev.filter(p => p.id !== id);
+            saveCustomPresets(next);
+            return next;
+        });
+        // 削除したプリセットが現在アクティブだった場合は activePresetId を null にする
+        if (state.activePresetId === id) {
+            dispatch({ type: 'LOAD_STATE', payload: { ...state, activePresetId: null } });
+        }
+    }, [state]);
+
+    const value: AudioEngineContextValue = {
+        state,
+        play,
+        stop,
+        setBlend,
+        setEQ,
+        setHarmonicExciter,
+        setTone,
+        setFade,
+        setMaster,
+        applyPreset,
+        addSoundscapeFromFile,
+        addSoundscapeLayer,
+        removeSoundscape,
+        updateSoundscape,
+        getRMSLevel,
+        presets: [...BUILT_IN_PRESETS, ...customPresets],
+        saveCustomPreset,
+        deleteCustomPreset,
+        addCustomFile: useCallback((entry: CustomFileEntry) => {
+            dispatch({ type: 'ADD_CUSTOM_FILE', payload: entry });
+        }, []),
+        removeCustomFile: useCallback((id: string) => {
+            dispatch({ type: 'REMOVE_CUSTOM_FILE', payload: id });
+        }, []),
+    };
+
+    return (
+        <AudioEngineCtx.Provider value={value}>
+            {children}
+        </AudioEngineCtx.Provider>
+    );
+}
+
+// ===== フック =====
+export function useAudioEngine(): AudioEngineContextValue {
+    const ctx = useContext(AudioEngineCtx);
+    if (!ctx) {
+        throw new Error('useAudioEngine は AudioEngineProvider 内で使用してください');
+    }
+    return ctx;
+}

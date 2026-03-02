@@ -1,0 +1,76 @@
+{
+    "app": {
+        "tabPlayer": "Player",
+        "tabSounds": "Sounds",
+        "tabMixer": "Mixer"
+    },
+    "player": {
+        "statusActive": "NOW MASKING",
+        "statusReady": "READY",
+        "customMix": "Custom Mix",
+        "customMixDesc": "カスタムブレンド",
+        "toggleLanguage": "言語切り替え",
+        "toggleTheme": "テーマ切り替え",
+        "play": "再生",
+        "stop": "停止"
+    },
+    "mixer": {
+        "toggleLanguage": "言語切り替え",
+        "toggleTheme": "テーマ切り替え",
+        "toneHeader": "TONE (EQ & HARMONICS)",
+        "yourCustomMix": "Your custom mix",
+        "saveAsPreset": "Save as Preset",
+        "savePresetTitle": "Save Preset",
+        "savePresetDesc": "Name your custom noise blend",
+        "presetNameLabel": "PRESET NAME",
+        "presetNamePlaceholder": "例: 夜のリラックス",
+        "saveButton": "Save Preset",
+        "cancelButton": "Cancel"
+    },
+    "sounds": {
+        "toggleLanguage": "言語切り替え",
+        "toggleTheme": "テーマ切り替え",
+        "ambientLibrary": "AMBIENT LIBRARY",
+        "playing": "再生中",
+        "tapToPlay": "タップで再生",
+        "customSound": "カスタム",
+        "addOwnAudio": "自分の音源を追加（MP3 / WAV）",
+        "rain": {
+            "label": "静けさの雨"
+        },
+        "forest": {
+            "label": "森と鳥"
+        },
+        "cafe": {
+            "label": "環境音カフェ"
+        },
+        "ocean": {
+            "label": "穏やかな波"
+        },
+        "bonfire": {
+            "label": "焚き火"
+        }
+    },
+    "presets": {
+        "footstep-strong": {
+            "name": "足音対策（強）",
+            "desc": "上階からの足音・重量床衝撃音を最大限マスキング。ブラウンノイズ主体で低域を強力にブースト。"
+        },
+        "footstep-mild": {
+            "name": "足音対策（中）",
+            "desc": "足音をカバーしつつ耳に優しい設定。長時間の使用に適している。"
+        },
+        "conversation-mask": {
+            "name": "会話マスク",
+            "desc": "隣室の会話や生活音をカバー。ピンクノイズ主体で中音域を強化。"
+        },
+        "relax-sleep": {
+            "name": "睡眠用",
+            "desc": "穏やかなブラウンノイズで睡眠環境を整える。低音量で長時間再生向け。"
+        },
+        "focus-work": {
+            "name": "作業用",
+            "desc": "フラットなピンクノイズで環境音をニュートラルにマスキング。"
+        }
+    }
+}

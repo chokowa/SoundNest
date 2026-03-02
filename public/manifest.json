@@ -1,0 +1,28 @@
+{
+    "name": "SoundNest",
+    "short_name": "SoundNest",
+    "description": "集合住宅の騒音ストレスを軽減するサウンドマスキングアプリ",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#FAF8F5",
+    "theme_color": "#1A1918",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "/icon.svg",
+            "type": "image/svg+xml",
+            "sizes": "any",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icon.svg",
+            "type": "image/svg+xml",
+            "sizes": "192x192 512x512"
+        }
+    ],
+    "categories": [
+        "lifestyle",
+        "health",
+        "music"
+    ]
+}

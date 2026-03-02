@@ -1,0 +1,76 @@
+{
+    "app": {
+        "tabPlayer": "Player",
+        "tabSounds": "Sounds",
+        "tabMixer": "Mixer"
+    },
+    "player": {
+        "toggleLanguage": "Toggle Language",
+        "statusActive": "NOW MASKING",
+        "statusReady": "READY",
+        "customMix": "Custom Mix",
+        "customMixDesc": "Custom Blend",
+        "toggleTheme": "Toggle Theme",
+        "play": "Play",
+        "stop": "Stop"
+    },
+    "mixer": {
+        "toggleLanguage": "Toggle Language",
+        "toggleTheme": "Toggle Theme",
+        "toneHeader": "TONE (EQ & HARMONICS)",
+        "yourCustomMix": "Your custom mix",
+        "saveAsPreset": "Save as Preset",
+        "savePresetTitle": "Save Preset",
+        "savePresetDesc": "Name your custom noise blend",
+        "presetNameLabel": "PRESET NAME",
+        "presetNamePlaceholder": "e.g. Focus Mode",
+        "saveButton": "Save Preset",
+        "cancelButton": "Cancel"
+    },
+    "sounds": {
+        "toggleLanguage": "Toggle Language",
+        "toggleTheme": "Toggle Theme",
+        "ambientLibrary": "AMBIENT LIBRARY",
+        "playing": "Playing",
+        "tapToPlay": "Tap to Play",
+        "customSound": "Custom",
+        "addOwnAudio": "Add your own audio (MP3 / WAV)",
+        "rain": {
+            "label": "Rain"
+        },
+        "forest": {
+            "label": "Forest"
+        },
+        "cafe": {
+            "label": "Cafe"
+        },
+        "ocean": {
+            "label": "Ocean"
+        },
+        "bonfire": {
+            "label": "Bonfire"
+        }
+    },
+    "presets": {
+        "footstep-strong": {
+            "name": "Heavy Shield",
+            "desc": "Maximizes masking of heavy footsteps and impact sounds from above. Boosts low frequencies mostly using Brown noise."
+        },
+        "footstep-mild": {
+            "name": "Mild Shield",
+            "desc": "Gentler on the ears while still covering footsteps. Ideal for long-duration use."
+        },
+        "conversation-mask": {
+            "name": "Vocal Mask",
+            "desc": "Covers neighbor conversations and daily sounds. Boosts mid frequencies using Pink noise."
+        },
+        "relax-sleep": {
+            "name": "Deep Sleep",
+            "desc": "Prepares your environment for sleep with calm Brown noise. Recommended for long hours at low volume."
+        },
+        "focus-work": {
+            "name": "Deep Focus",
+            "desc": "Neutrally masks environmental sounds using flat Pink noise."
+        }
+    }
+}
