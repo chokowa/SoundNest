@@ -209,10 +209,10 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         const ctx = new AudioContext();
 
         // AudioWorklet モジュールの登録
-        await ctx.audioWorklet.addModule('/worklets/white-noise-processor.js');
-        await ctx.audioWorklet.addModule('/worklets/pink-noise-processor.js');
-        await ctx.audioWorklet.addModule('/worklets/brown-noise-processor.js');
-        await ctx.audioWorklet.addModule('/worklets/sub-bass-processor.js');
+        await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/white-noise-processor.js`);
+        await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/pink-noise-processor.js`);
+        await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/brown-noise-processor.js`);
+        await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/sub-bass-processor.js`);
 
         // ミキサーゲインノード（3つのWorkletをまとめる）
         const mixerGain = ctx.createGain();
