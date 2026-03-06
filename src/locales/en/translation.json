@@ -55,23 +55,23 @@
     "presets": {
         "footstep-strong": {
             "name": "Heavy Shield",
-            "desc": "Maximizes masking of heavy footsteps and impact sounds from above. Boosts low frequencies mostly using Brown noise."
+            "desc": "Strong low-freq masking for heavy footsteps."
         },
         "footstep-mild": {
             "name": "Mild Shield",
-            "desc": "Gentler on the ears while still covering footsteps. Ideal for long-duration use."
+            "desc": "Gentle coverage for light footsteps."
         },
         "conversation-mask": {
             "name": "Vocal Mask",
-            "desc": "Covers neighbor conversations and daily sounds. Boosts mid frequencies using Pink noise."
+            "desc": "Mid-range boost to cover voices nearby."
         },
         "relax-sleep": {
             "name": "Deep Sleep",
-            "desc": "Prepares your environment for sleep with calm Brown noise. Recommended for long hours at low volume."
+            "desc": "Calm brown noise for restful sleep."
         },
         "focus-work": {
             "name": "Deep Focus",
-            "desc": "Neutrally masks environmental sounds using flat Pink noise."
+            "desc": "Flat pink noise to block distractions."
         }
     }
 }

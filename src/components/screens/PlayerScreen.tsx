@@ -131,48 +131,161 @@ export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
                     {activePreset?.builtIn ? t(`presets.${activePreset.id}.desc`) : (activePreset?.description ?? t('player.customMixDesc', 'カスタムブレンド'))}
                 </p>
 
-                {/* マスターボリューム + 再生ボタン */}
+                {/* コントロールエリア: スライダー群 + 再生ボタン */}
                 <div style={{
                     display: 'flex',
-                    justifyContent: 'space-between',
                     alignItems: 'center',
                     paddingTop: 'clamp(20px, 5vw, 32px)',
                     gap: 20,
                 }}>
-                    {/* ボリュームスライダー */}
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {/* 左: スライダー群（VOLUME + FADE を縦に揃える） */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+
+                        {/* VOLUME 行 */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                            }}>
+                                <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1, color: 'var(--text-muted)', fontFamily: 'Inter' }}>
+                                    VOLUME
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent-primary)', fontFamily: 'Inter' }}>
+                                    {Math.round(master.volume * 100)}%
+                                </span>
+                            </div>
+                            <input
+                                type="range"
+                                className="nm-slider"
+                                min={0}
+                                max={1}
+                                step={0.01}
+                                value={master.volume}
+                                onChange={e => setMaster({ volume: parseFloat(e.target.value) })}
+                                style={{
+                                    background: `linear-gradient(to right, var(--accent-primary) ${master.volume * 100}%, var(--border-default) ${master.volume * 100}%)`,
+                                }}
+                            />
+                        </div>
+
+                        {/* FADE 行（コンパクトなインラインコントロール） */}
                         <div style={{
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
+                            paddingTop: 4,
                         }}>
-                            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1, color: 'var(--text-muted)', fontFamily: 'Inter' }}>
-                                MASTER VOLUME
-                            </span>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent-primary)', fontFamily: 'Inter' }}>
-                                {Math.round(master.volume * 100)}%
-                            </span>
+                            {/* LEFT: FADE ラベル + トグル */}
+                            <button
+                                onClick={() => setFade({ enabled: !fade.enabled })}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                }}
+                                aria-label={t('player.fadeToggle', 'フェード切り替え')}
+                            >
+                                <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1, color: 'var(--text-muted)', fontFamily: 'Inter' }}>
+                                    FADE
+                                </span>
+                                <div style={{
+                                    width: 32,
+                                    height: 18,
+                                    borderRadius: 9,
+                                    background: fade.enabled ? 'var(--accent-primary)' : 'var(--border-strong)',
+                                    position: 'relative',
+                                    transition: 'background var(--transition-fast)',
+                                    flexShrink: 0,
+                                }}>
+                                    <div style={{
+                                        width: 14,
+                                        height: 14,
+                                        borderRadius: '50%',
+                                        background: '#FFFFFF',
+                                        position: 'absolute',
+                                        top: 2,
+                                        left: fade.enabled ? 16 : 2,
+                                        transition: 'left var(--transition-fast)',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                                    }} />
+                                </div>
+                            </button>
+
+                            {/* RIGHT: 秒数ステッパー（ON時のみ操作可能） */}
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                opacity: fade.enabled ? 1 : 0.3,
+                                pointerEvents: fade.enabled ? 'auto' : 'none',
+                                transition: 'opacity var(--transition-fast)',
+                            }}>
+                                <button
+                                    onClick={() => setFade({ duration: Math.max(1, fade.duration - 1) })}
+                                    style={{
+                                        width: 24,
+                                        height: 24,
+                                        borderRadius: 6,
+                                        border: '1px solid var(--border-default)',
+                                        background: 'transparent',
+                                        color: 'var(--text-muted)',
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: 0,
+                                        lineHeight: 1,
+                                    }}
+                                    aria-label="Decrease fade duration"
+                                >−</button>
+                                <span style={{
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    color: fade.enabled ? 'var(--accent-primary)' : 'var(--text-muted)',
+                                    fontFamily: 'Inter',
+                                    minWidth: 28,
+                                    textAlign: 'center',
+                                    transition: 'color var(--transition-fast)',
+                                }}>
+                                    {fade.enabled ? `${fade.duration}s` : 'OFF'}
+                                </span>
+                                <button
+                                    onClick={() => setFade({ duration: Math.min(15, fade.duration + 1) })}
+                                    style={{
+                                        width: 24,
+                                        height: 24,
+                                        borderRadius: 6,
+                                        border: '1px solid var(--border-default)',
+                                        background: 'transparent',
+                                        color: 'var(--text-muted)',
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: 0,
+                                        lineHeight: 1,
+                                    }}
+                                    aria-label="Increase fade duration"
+                                >+</button>
+                            </div>
                         </div>
-                        <input
-                            type="range"
-                            className="nm-slider"
-                            min={0}
-                            max={1}
-                            step={0.01}
-                            value={master.volume}
-                            onChange={e => setMaster({ volume: parseFloat(e.target.value) })}
-                            style={{
-                                background: `linear-gradient(to right, var(--accent-primary) ${master.volume * 100}%, var(--border-default) ${master.volume * 100}%)`,
-                            }}
-                        />
                     </div>
 
-                    {/* 再生ボタン（タッチターゲット 72px） */}
+                    {/* 右: 再生ボタン（タッチターゲット 72px） */}
                     <button
                         className="nm-play-btn"
                         onClick={handlePlayToggle}
                         aria-label={isPlaying ? t('player.stop', '停止') : t('player.play', '再生')}
-                        style={{ flexShrink: 0 }}
+                        style={{ flexShrink: 0, alignSelf: 'center' }}
                     >
                         {isPlaying ? (
                             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -185,95 +298,6 @@ export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
                             </svg>
                         )}
                     </button>
-                </div>
-
-                {/* フェード設定行 */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    paddingTop: 'clamp(12px, 3vw, 16px)',
-                }}>
-                    {/* ON/OFFトグル */}
-                    <button
-                        onClick={() => setFade({ enabled: !fade.enabled })}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: 0,
-                            flexShrink: 0,
-                        }}
-                        aria-label={t('player.fadeToggle', 'フェード切り替え')}
-                    >
-                        <span style={{
-                            fontSize: 10,
-                            fontWeight: 600,
-                            letterSpacing: 1,
-                            color: 'var(--text-muted)',
-                            fontFamily: 'Inter',
-                        }}>
-                            FADE
-                        </span>
-                        {/* トグルスイッチ */}
-                        <div style={{
-                            width: 36,
-                            height: 20,
-                            borderRadius: 10,
-                            background: fade.enabled ? 'var(--accent-primary)' : 'var(--border-strong)',
-                            position: 'relative',
-                            transition: 'background var(--transition-fast)',
-                        }}>
-                            <div style={{
-                                width: 16,
-                                height: 16,
-                                borderRadius: '50%',
-                                background: '#FFFFFF',
-                                position: 'absolute',
-                                top: 2,
-                                left: fade.enabled ? 18 : 2,
-                                transition: 'left var(--transition-fast)',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                            }} />
-                        </div>
-                    </button>
-
-                    {/* フェード秒数スライダー（ON時のみ操作可能） */}
-                    <div style={{
-                        flex: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        opacity: fade.enabled ? 1 : 0.3,
-                        pointerEvents: fade.enabled ? 'auto' : 'none',
-                        transition: 'opacity var(--transition-fast)',
-                    }}>
-                        <input
-                            type="range"
-                            className="nm-slider"
-                            min={1}
-                            max={15}
-                            step={1}
-                            value={fade.duration}
-                            onChange={e => setFade({ duration: parseInt(e.target.value) })}
-                            style={{
-                                background: `linear-gradient(to right, var(--accent-primary) ${((fade.duration - 1) / 14) * 100}%, var(--border-default) ${((fade.duration - 1) / 14) * 100}%)`,
-                            }}
-                        />
-                        <span style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: 'var(--accent-primary)',
-                            fontFamily: 'Inter',
-                            minWidth: 24,
-                            textAlign: 'right',
-                        }}>
-                            {fade.duration}s
-                        </span>
-                    </div>
                 </div>
             </div>
 
