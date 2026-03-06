@@ -12,7 +12,8 @@
         "customMixDesc": "Custom Blend",
         "toggleTheme": "Toggle Theme",
         "play": "Play",
-        "stop": "Stop"
+        "stop": "Stop",
+        "fadeToggle": "Toggle Fade"
     },
     "mixer": {
         "toggleLanguage": "Toggle Language",

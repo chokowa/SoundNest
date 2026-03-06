@@ -10,8 +10,8 @@ interface PlayerScreenProps {
 
 export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
     const { t, i18n } = useTranslation();
-    const { state, play, stop, applyPreset, setMaster, deleteCustomPreset, presets } = useAudioEngine();
-    const { isPlaying, master, activePresetId } = state;
+    const { state, play, stop, applyPreset, setMaster, setFade, deleteCustomPreset, presets } = useAudioEngine();
+    const { isPlaying, master, fade, activePresetId } = state;
 
     const toggleLanguage = useCallback(() => {
         const nextLang = i18n.language.startsWith('ja') ? 'en' : 'ja';
@@ -185,6 +185,95 @@ export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
                             </svg>
                         )}
                     </button>
+                </div>
+
+                {/* フェード設定行 */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    paddingTop: 'clamp(12px, 3vw, 16px)',
+                }}>
+                    {/* ON/OFFトグル */}
+                    <button
+                        onClick={() => setFade({ enabled: !fade.enabled })}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: 0,
+                            flexShrink: 0,
+                        }}
+                        aria-label={t('player.fadeToggle', 'フェード切り替え')}
+                    >
+                        <span style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            letterSpacing: 1,
+                            color: 'var(--text-muted)',
+                            fontFamily: 'Inter',
+                        }}>
+                            FADE
+                        </span>
+                        {/* トグルスイッチ */}
+                        <div style={{
+                            width: 36,
+                            height: 20,
+                            borderRadius: 10,
+                            background: fade.enabled ? 'var(--accent-primary)' : 'var(--border-strong)',
+                            position: 'relative',
+                            transition: 'background var(--transition-fast)',
+                        }}>
+                            <div style={{
+                                width: 16,
+                                height: 16,
+                                borderRadius: '50%',
+                                background: '#FFFFFF',
+                                position: 'absolute',
+                                top: 2,
+                                left: fade.enabled ? 18 : 2,
+                                transition: 'left var(--transition-fast)',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                            }} />
+                        </div>
+                    </button>
+
+                    {/* フェード秒数スライダー（ON時のみ操作可能） */}
+                    <div style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        opacity: fade.enabled ? 1 : 0.3,
+                        pointerEvents: fade.enabled ? 'auto' : 'none',
+                        transition: 'opacity var(--transition-fast)',
+                    }}>
+                        <input
+                            type="range"
+                            className="nm-slider"
+                            min={1}
+                            max={15}
+                            step={1}
+                            value={fade.duration}
+                            onChange={e => setFade({ duration: parseInt(e.target.value) })}
+                            style={{
+                                background: `linear-gradient(to right, var(--accent-primary) ${((fade.duration - 1) / 14) * 100}%, var(--border-default) ${((fade.duration - 1) / 14) * 100}%)`,
+                            }}
+                        />
+                        <span style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: 'var(--accent-primary)',
+                            fontFamily: 'Inter',
+                            minWidth: 24,
+                            textAlign: 'right',
+                        }}>
+                            {fade.duration}s
+                        </span>
+                    </div>
                 </div>
             </div>
 

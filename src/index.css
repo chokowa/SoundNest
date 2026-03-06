@@ -32,10 +32,10 @@
   --accent-red: #8B4049;
 
   /* ノイズチャンネルカラー */
-  --noise-brown: #1E3A5F;
-  --noise-pink: #3D6B4F;
-  --noise-white: #8B6B8B;
-  --noise-sub: #8B4049;
+  --noise-brown: #8B6B4A;
+  --noise-pink: #C46B8A;
+  --noise-white: #8A8A8A;
+  --noise-sub: #1E3A5F;
 
   /* シャドウ */
   --shadow-card: 0 2px 12px rgba(28, 28, 28, 0.06);
@@ -74,10 +74,10 @@
   --accent-purple: #A88BAA;
   --accent-red: #AA7B80;
 
-  --noise-brown: #5B8FBF;
-  --noise-pink: #8BA88B;
-  --noise-white: #A88BAA;
-  --noise-sub: #AA7B80;
+  --noise-brown: #B08D6A;
+  --noise-pink: #D48BA5;
+  --noise-white: #B0B0B0;
+  --noise-sub: #5B8FBF;
 
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.30);
   --shadow-btn: 0 8px 24px rgba(91, 143, 191, 0.25);

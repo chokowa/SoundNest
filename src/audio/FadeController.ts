@@ -68,6 +68,13 @@ export class FadeController {
         this.gainNode.gain.setValueAtTime(0, now);
     }
 
+    /** 即座にアンミュート（フェードなし） */
+    unmute(): void {
+        const now = this.ctx.currentTime;
+        this.gainNode.gain.cancelScheduledValues(now);
+        this.gainNode.gain.setValueAtTime(1.0, now);
+    }
+
     /** リソース解放 */
     dispose(): void {
         this.gainNode.disconnect();

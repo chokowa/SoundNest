@@ -40,7 +40,7 @@ const initialState: AudioEngineState = {
     blend: { ...defaultPreset.blend, white: defaultPreset.blend.white ?? 0, sub: defaultPreset.blend.sub ?? 0 },
     eq: { ...defaultPreset.eq },
     harmonicExciter: { ...defaultPreset.harmonicExciter },
-    fade: { duration: 5 },
+    fade: { enabled: true, duration: 5 },
     master: { volume: 0.5 },
     activePresetId: DEFAULT_PRESET_ID,
     activeToneId: defaultPreset.toneId ?? null,
@@ -325,19 +325,29 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
         syncAudioParams(state);
         dispatch({ type: 'SET_PLAYING', payload: true });
-        await fadeControllerRef.current?.fadeIn();
+        // フェード有効時はフェードイン、無効時は即再生
+        if (state.fade.enabled) {
+            await fadeControllerRef.current?.fadeIn();
+        } else {
+            fadeControllerRef.current?.unmute();
+        }
     }, [ensureAudioContext, syncAudioParams, state]);
 
     // === 停止 ===
     const stop = useCallback(async () => {
         if (fadeControllerRef.current) {
-            await fadeControllerRef.current.fadeOut();
+            // フェード有効時はフェードアウト、無効時は即停止
+            if (state.fade.enabled) {
+                await fadeControllerRef.current.fadeOut();
+            } else {
+                fadeControllerRef.current.mute();
+            }
         }
         if (backgroundAudioRef.current) {
             backgroundAudioRef.current.pause();
         }
         dispatch({ type: 'SET_PLAYING', payload: false });
-    }, []);
+    }, [state.fade.enabled]);
 
     // === 各種セッター ===
     const setBlend = useCallback((blend: Partial<NoiseBlend>) => {
@@ -410,7 +420,10 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         // 2つのAudio要素と関連ノードを保持する
         const createPlayer = () => {
             const audio = new Audio(layer.src);
-            audio.crossOrigin = 'anonymous';
+            // カスタム音源 (blob:) の場合は CORS エラーを避けるため crossOrigin を設定しない
+            if (!layer.src.startsWith('blob:')) {
+                audio.crossOrigin = 'anonymous';
+            }
             // ループは手動で制御するため false にする
             audio.loop = false;
 

@@ -42,6 +42,8 @@ export interface ToneSetting {
 
 /** フェード設定 */
 export interface FadeSettings {
+    /** フェード有効/無効 */
+    enabled: boolean;
     /** フェード時間（秒）: 1 ~ 15 */
     duration: number;
 }

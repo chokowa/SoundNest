@@ -12,7 +12,8 @@
         "toggleLanguage": "言語切り替え",
         "toggleTheme": "テーマ切り替え",
         "play": "再生",
-        "stop": "停止"
+        "stop": "停止",
+        "fadeToggle": "フェード切り替え"
     },
     "mixer": {
         "toggleLanguage": "言語切り替え",
