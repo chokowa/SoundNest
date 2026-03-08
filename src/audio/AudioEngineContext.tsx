@@ -187,8 +187,10 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
     const mixerGainRef = useRef<GainNode | null>(null);
     const soundscapeSourcesRef = useRef<Map<string, { source: MediaElementAudioSourceNode; gain: GainNode; element: HTMLAudioElement }>>(new Map());
 
-    // === バックグラウンド再生維持（iOS対策） ===
+    // === バックグラウンド再生維持（iOS/Android 対策） ===
     const backgroundAudioRef = useRef<HTMLAudioElement | null>(null);
+    // isPlaying の最新値を Ref で保持（コールバック内のクロージャ問題を回避）
+    const isPlayingRef = useRef<boolean>(false);
 
     // === 状態の永続化 ===
     useEffect(() => {
@@ -207,6 +209,18 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         }
 
         const ctx = new AudioContext();
+
+        // === AudioContext 自動サスペンド検知・復帰 ===
+        // Android/iOS のバックグラウンド移行・通知音割り込みで AudioContext が
+        // 予告なく 'suspended' になることがある。onstatechange で検知して自動復帰する。
+        ctx.onstatechange = () => {
+            // 再生中に suspended になった場合のみ復帰を試みる
+            if (ctx.state === 'suspended' && isPlayingRef.current) {
+                ctx.resume().catch((err) => {
+                    console.warn('[AudioEngine] AudioContext 自動復帰に失敗しました:', err);
+                });
+            }
+        };
 
         // AudioWorklet モジュールの登録
         await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/white-noise-processor.js`);
@@ -298,6 +312,9 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
     // === 状態変更時にオーディオパラメータを同期 ===
     useEffect(() => {
+        // isPlayingRef を state と同期（onstatechange コールバック用）
+        isPlayingRef.current = state.isPlaying;
+
         if (state.isPlaying && audioCtxRef.current) {
             syncAudioParams(state);
         }
@@ -310,20 +327,29 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             await ctx.resume();
         }
 
-        // iOSバックグラウンド再生維持ハック：ユーザーアクション起因でメディア要素を再生する
+        // バックグラウンド再生維持ハック：ユーザーアクション起因でメディア要素を再生する
+        // iOS/Android 両対応: crossOrigin は data:URI に設定しない（CORSエラー回避）
         if (!backgroundAudioRef.current) {
             const audio = new Audio();
-            // 超短い無音のWAVデータURI（44バイト）
-            audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+            // iOS Safari は OGG 非対応のため、WAV を優先し OGG をフォールバックとして使用する
+            // canPlayType で対応フォーマットを動的に判定する
+            const canPlayWav = audio.canPlayType('audio/wav') !== '';
+            if (canPlayWav) {
+                // 無音WAV (44バイト): iOS/Androidの両方で動作
+                audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+            } else {
+                // フォールバック: OGG（Android Chrome 等）
+                // eslint-disable-next-line max-len
+                audio.src = 'data:audio/ogg;base64,T2dnUwACAAAAAAAAAADqnjMlAAAAAOyyzAEBHgF2b3JiaXMAAAAAAUAfAABAHwAAQB8AAIAJAARB//////////8JTGAVGAAAAAAQBmNvbW1lbnQAAABgeGlwaC5vcmcAAAAAAAAAAAAAAAAAAAAA';
+            }
             audio.loop = true;
-            audio.crossOrigin = 'anonymous';
-            audio.style.display = 'none';
-            document.body.appendChild(audio);
+            audio.volume = 0.001; // 事実上の無音だが再生中とみなされる音量
             backgroundAudioRef.current = audio;
         }
         backgroundAudioRef.current.play().catch(() => { /* 無視 */ });
 
         syncAudioParams(state);
+        isPlayingRef.current = true; // onstatechange が参照する Ref を即座に更新
         dispatch({ type: 'SET_PLAYING', payload: true });
         // フェード有効時はフェードイン、無効時は即再生
         if (state.fade.enabled) {
@@ -346,6 +372,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         if (backgroundAudioRef.current) {
             backgroundAudioRef.current.pause();
         }
+        isPlayingRef.current = false; // onstatechange が参照する Ref を即座に更新
         dispatch({ type: 'SET_PLAYING', payload: false });
     }, [state.fade.enabled]);
 
@@ -418,7 +445,14 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         masterGain.connect(fadeControllerRef.current.input);
 
         // 2つのAudio要素と関連ノードを保持する
-        const createPlayer = () => {
+        // _onTimeUpdate / _onEnded はリスナーの参照を保持し、後で解除するために使う
+        const createPlayer = (): {
+            audio: HTMLAudioElement;
+            source: MediaElementAudioSourceNode;
+            fadeGain: GainNode;
+            _onTimeUpdate: ((e: Event) => void) | null;
+            _onEnded: ((e: Event) => void) | null;
+        } => {
             const audio = new Audio(layer.src);
             // カスタム音源 (blob:) の場合は CORS エラーを避けるため crossOrigin を設定しない
             if (!layer.src.startsWith('blob:')) {
@@ -433,7 +467,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             source.connect(fadeGain);
             fadeGain.connect(masterGain);
 
-            return { audio, source, fadeGain };
+            return { audio, source, fadeGain, _onTimeUpdate: null, _onEnded: null };
         };
 
         const playerA = createPlayer();
@@ -443,50 +477,78 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         let inactivePlayer = playerB;
         let isStopped = false;
 
-        // 再生スケジューリング関数
-        const scheduleNextLoop = () => {
+        /**
+         * クロスフェード切り替えを実行する関数。
+         * timeupdate と ended の両方から呼び出される可能性があるため、
+         * hasTriggered フラグで二重起動を防止する。
+         */
+        const triggerCrossfade = (currentActive: typeof playerA, currentInactive: typeof playerA, hasTriggered: { value: boolean }) => {
+            if (isStopped || hasTriggered.value) return;
+            hasTriggered.value = true;
+
+            // イベントリスナーを全て解除（チークリーンアップ）
+            currentActive.audio.removeEventListener('timeupdate', currentActive._onTimeUpdate!);
+            currentActive.audio.removeEventListener('ended', currentActive._onEnded!);
+
+            // 次のプレイヤーの準備と再生
+            currentInactive.audio.currentTime = 0;
+            currentInactive.audio.play().catch(console.error);
+
+            // クロスフェードのスケジュール
+            const now = ctx.currentTime;
+            currentInactive.fadeGain.gain.cancelScheduledValues(now);
+            currentInactive.fadeGain.gain.setValueAtTime(0, now);
+            currentInactive.fadeGain.gain.linearRampToValueAtTime(1, now + CROSSFADE_DURATION);
+
+            currentActive.fadeGain.gain.cancelScheduledValues(now);
+            currentActive.fadeGain.gain.setValueAtTime(currentActive.fadeGain.gain.value, now);
+            currentActive.fadeGain.gain.linearRampToValueAtTime(0, now + CROSSFADE_DURATION);
+
+            // 役割交代
+            activePlayer = currentInactive;
+            inactivePlayer = currentActive;
+
+            // 新しいアクティブプレイヤーのメタデータがロードされたら次のスケジューリングを開始
+            if (activePlayer.audio.readyState >= 1) {
+                // 既にメタデータあり
+                attachListeners(activePlayer, inactivePlayer);
+            } else {
+                activePlayer.audio.addEventListener('loadedmetadata', () => {
+                    attachListeners(activePlayer, inactivePlayer);
+                }, { once: true });
+            }
+        };
+
+        /**
+         * アクティブプレイヤーに timeupdate + ended の両方のリスナーを登録する。
+         * - timeupdate: 展開中に残り時間がクロスフェード開始点以下になったら起動
+         * - ended: バックグラウンドで timeupdate が止まった場合のボールト（安全答）
+         */
+        const attachListeners = (ap: typeof playerA, ip: typeof playerA) => {
             if (isStopped) return;
+            const hasTriggered = { value: false };
 
-            // アクティブなプレイヤーが終了のCROSSFADE_DURATION秒前になったら、
-            // インアクティブなプレイヤーをフェードイン再生し始める
             const onTimeUpdate = () => {
-                if (isStopped) return;
-                // 再生時間が取得可能で、残り時間がクロスフェード時間以下になったら
-                if (activePlayer.audio.duration &&
-                    (activePlayer.audio.duration - activePlayer.audio.currentTime) <= CROSSFADE_DURATION) {
-
-                    // イベントリスナーを解除して重複実行を防ぐ
-                    activePlayer.audio.removeEventListener('timeupdate', onTimeUpdate);
-
-                    // 次のプレイヤーの準備と再生
-                    inactivePlayer.audio.currentTime = 0;
-
-                    // ※ブラウザの自動再生ポリシー対策として、currentTime 設定後少し待つ場合もあるが
-                    // ユーザーインタラクション後であれば基本的には issue になりにくい
-                    inactivePlayer.audio.play().catch(console.error);
-
-                    // クロスフェードのスケジュール
-                    const now = ctx.currentTime;
-                    // 次のプレイヤーをフェードイン
-                    inactivePlayer.fadeGain.gain.setValueAtTime(0, now);
-                    inactivePlayer.fadeGain.gain.linearRampToValueAtTime(1, now + CROSSFADE_DURATION);
-
-                    // 現在のプレイヤーをフェードアウト
-                    activePlayer.fadeGain.gain.setValueAtTime(1, now);
-                    activePlayer.fadeGain.gain.linearRampToValueAtTime(0, now + CROSSFADE_DURATION);
-
-                    // 役割交代
-                    const temp = activePlayer;
-                    activePlayer = inactivePlayer;
-                    inactivePlayer = temp;
-
-                    // 新しいアクティブプレイヤーに次のイベントリスナーを仕掛ける
-                    activePlayer.audio.addEventListener('timeupdate', scheduleNextLoop);
+                if (isStopped || hasTriggered.value) return;
+                if (
+                    ap.audio.duration &&
+                    (ap.audio.duration - ap.audio.currentTime) <= CROSSFADE_DURATION
+                ) {
+                    triggerCrossfade(ap, ip, hasTriggered);
                 }
             };
 
-            // 初期状態または役割交代後にリスナーを登録
-            activePlayer.audio.addEventListener('timeupdate', onTimeUpdate);
+            // ended イベント: timeupdate が発火されずに音源が終わった場合のフォールバック
+            const onEnded = () => {
+                triggerCrossfade(ap, ip, hasTriggered);
+            };
+
+            // リスナーをインスタンスに保存（後で解除するため）
+            ap._onTimeUpdate = onTimeUpdate;
+            ap._onEnded = onEnded;
+
+            ap.audio.addEventListener('timeupdate', onTimeUpdate);
+            ap.audio.addEventListener('ended', onEnded);
         };
 
         // 初期再生の開始
@@ -495,17 +557,22 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
         // メタデータ（Audioオブジェクトのduration等）がロードされたらスケジューリング開始
         activePlayer.audio.addEventListener('loadedmetadata', () => {
-            scheduleNextLoop();
-        });
+            attachListeners(activePlayer, inactivePlayer);
+        }, { once: true });
 
         // 停止などのクリーンアップ用に複数要素をまとめたカスタムオブジェクトを保持
         soundscapeSourcesRef.current.set(layer.id, {
-            source: playerA.source, // 型互換性のためどれか一つを渡す（実際は使われないことが多い）
+            source: playerA.source, // 型互换性のためどれか一つを渡す（実際は使われないことが多い）
             gain: masterGain,
             // Audio要素の制御用オブジェクトを拡張して持たせる(stopなどのカスタムメソッド)
             element: {
                 pause: () => {
                     isStopped = true;
+                    // 登録済リスナーを解除
+                    playerA.audio.removeEventListener('timeupdate', playerA._onTimeUpdate!);
+                    playerA.audio.removeEventListener('ended', playerA._onEnded!);
+                    playerB.audio.removeEventListener('timeupdate', playerB._onTimeUpdate!);
+                    playerB.audio.removeEventListener('ended', playerB._onEnded!);
                     playerA.audio.pause();
                     playerB.audio.pause();
                 },
@@ -513,7 +580,8 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                     if (isStopped) {
                         isStopped = false;
                         activePlayer.audio.play().catch(console.error);
-                        activePlayer.audio.addEventListener('timeupdate', scheduleNextLoop);
+                        // 再開時は loadedmetadata 済のはずなので即座にリスナーを登録
+                        attachListeners(activePlayer, inactivePlayer);
                     }
                 },
                 get src() { return layer.src; } // 型合わせ
