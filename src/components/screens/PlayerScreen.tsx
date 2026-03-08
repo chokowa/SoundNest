@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAudioEngine } from '../../audio/AudioEngineContext';
+import { AudioLogPanel } from '../controls/AudioLogPanel';
 import type { Preset } from '../../types/audio';
 
 interface PlayerScreenProps {
@@ -417,6 +418,10 @@ export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
                     })}
                 </div>
             </div>
+
+            {/* デバッグログパネル — DEVビルドのみ表示、本番ビルドでは自動的に非表示 */}
+            <AudioLogPanel />
+
         </div>
     );
 }

@@ -27,6 +27,7 @@ import { HarmonicExciter } from './HarmonicExciter';
 import { MasterBus } from './MasterBus';
 import { FadeController } from './FadeController';
 import { BUILT_IN_PRESETS, DEFAULT_PRESET_ID, findPresetById, loadCustomPresets, saveCustomPresets } from './presets';
+import { addLog } from './AudioLogger';
 import { useState } from 'react';
 
 // ===== localStorage キー =====
@@ -214,11 +215,16 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         // Android/iOS のバックグラウンド移行・通知音割り込みで AudioContext が
         // 予告なく 'suspended' になることがある。onstatechange で検知して自動復帰する。
         ctx.onstatechange = () => {
+            addLog('warn', `[AudioContext] state 変化: ${ctx.state}`);
             // 再生中に suspended になった場合のみ復帰を試みる
             if (ctx.state === 'suspended' && isPlayingRef.current) {
-                ctx.resume().catch((err) => {
-                    console.warn('[AudioEngine] AudioContext 自動復帰に失敗しました:', err);
-                });
+                addLog('warn', '[AudioContext] 再生中に suspended → resume() を試みます');
+                ctx.resume()
+                    .then(() => addLog('info', '[AudioContext] resume() 成功 → 再生継続'))
+                    .catch((err) => {
+                        addLog('error', `[AudioContext] resume() 失敗: ${String(err)}`);
+                        console.warn('[AudioEngine] AudioContext 自動復帰に失敗しました:', err);
+                    });
             }
         };
 
@@ -346,8 +352,11 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             audio.volume = 0.001; // 事実上の無音だが再生中とみなされる音量
             backgroundAudioRef.current = audio;
         }
-        backgroundAudioRef.current.play().catch(() => { /* 無視 */ });
+        backgroundAudioRef.current.play().catch((err) => {
+            addLog('warn', `[backgroundAudio] play() 失敗: ${String(err)}`);
+        });
 
+        addLog('info', `▶ 再生開始 (fade: ${state.fade.enabled ? `有効 ${state.fade.duration}s` : '無効'})`);
         syncAudioParams(state);
         isPlayingRef.current = true; // onstatechange が参照する Ref を即座に更新
         dispatch({ type: 'SET_PLAYING', payload: true });
@@ -361,6 +370,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
     // === 停止 ===
     const stop = useCallback(async () => {
+        addLog('info', `⏹ 停止 (fade: ${state.fade.enabled ? `有効 ${state.fade.duration}s` : '無効'})`);
         if (fadeControllerRef.current) {
             // フェード有効時はフェードアウト、無効時は即停止
             if (state.fade.enabled) {
@@ -482,9 +492,16 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
          * timeupdate と ended の両方から呼び出される可能性があるため、
          * hasTriggered フラグで二重起動を防止する。
          */
-        const triggerCrossfade = (currentActive: typeof playerA, currentInactive: typeof playerA, hasTriggered: { value: boolean }) => {
+        const triggerCrossfade = (currentActive: typeof playerA, currentInactive: typeof playerA, hasTriggered: { value: boolean }, trigger: 'timeupdate' | 'ended') => {
             if (isStopped || hasTriggered.value) return;
             hasTriggered.value = true;
+
+            if (trigger === 'ended') {
+                // ended フォールバック発動は timeupdate が届かなかった証拠—バックグラウンド制限の影響の可能性が高い
+                addLog('warn', `[SC: ${layer.name}] ⚠ ended フォールバック発動 (クロスフェード開始点で timeupdate 不到達の履歴あり)`);
+            } else {
+                addLog('info', `[SC: ${layer.name}] クロスフェード開始 (timeupdate)`);
+            }
 
             // イベントリスナーを全て解除（チークリーンアップ）
             currentActive.audio.removeEventListener('timeupdate', currentActive._onTimeUpdate!);
@@ -534,13 +551,13 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                     ap.audio.duration &&
                     (ap.audio.duration - ap.audio.currentTime) <= CROSSFADE_DURATION
                 ) {
-                    triggerCrossfade(ap, ip, hasTriggered);
+                    triggerCrossfade(ap, ip, hasTriggered, 'timeupdate');
                 }
             };
 
             // ended イベント: timeupdate が発火されずに音源が終わった場合のフォールバック
             const onEnded = () => {
-                triggerCrossfade(ap, ip, hasTriggered);
+                triggerCrossfade(ap, ip, hasTriggered, 'ended');
             };
 
             // リスナーをインスタンスに保存（後で解除するため）
