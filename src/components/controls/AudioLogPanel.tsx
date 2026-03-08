@@ -1,12 +1,22 @@
 /**
  * AudioLogPanel — デバッグログ表示パネル
  *
- * 開発ビルド (import.meta.env.DEV) のみレンダリングされる。
- * 本番ビルドでは null を返すため、Vite のツリーシェイクにより
- * このコンポーネントのコードは成果物に含まれない。
+ * 以下のいずれかの条件でレンダリングされる:
+ *   - 開発ビルド (import.meta.env.DEV = true)
+ *   - 本番ビルドで URL に ?debug=1 が含まれる
  */
 import { useState, useEffect, useRef } from 'react';
 import { getLogs, clearLogs, subscribeToLogs, type LogEntry } from '../../audio/AudioLogger';
+
+/** パネル表示判定（モジュールロード時に一度だけ評価） */
+const _isPanelEnabled: boolean = (() => {
+    if (import.meta.env.DEV) return true;
+    try {
+        return new URLSearchParams(window.location.search).get('debug') === '1';
+    } catch {
+        return false;
+    }
+})();
 
 const LEVEL_STYLES: Record<LogEntry['level'], { color: string; icon: string }> = {
     info: { color: '#a8d8a8', icon: 'ℹ' },
@@ -15,8 +25,8 @@ const LEVEL_STYLES: Record<LogEntry['level'], { color: string; icon: string }> =
 };
 
 export function AudioLogPanel() {
-    // 本番ビルドでは何もレンダリングしない
-    if (!import.meta.env.DEV) return null;
+    // デバッグモード以外では何もレンダリングしない
+    if (!_isPanelEnabled) return null;
 
     return <AudioLogPanelInner />;
 }

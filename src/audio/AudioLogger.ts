@@ -1,9 +1,11 @@
 /**
  * AudioLogger — オーディオエンジンのデバッグログ収集モジュール
  *
- * 開発ビルド (`import.meta.env.DEV = true`) のみ動作する。
- * 本番ビルドではすべての関数が no-op になり、
- * Vite のツリーシェイクにより成果物に含まれない。
+ * 以下のいずれかの条件で有効になる:
+ *   - 開発ビルド (import.meta.env.DEV = true)
+ *   - 本番ビルドで URL に ?debug=1 が含まれる
+ *
+ * 無効時はすべての関数が no-op。
  */
 
 export type LogLevel = 'info' | 'warn' | 'error';
@@ -17,6 +19,20 @@ export interface LogEntry {
 
 /** リングバッファの最大件数 */
 const MAX_ENTRIES = 200;
+
+/**
+ * デバッグモード判定・モジュールロード時に一度だけ評価しキャッシュする
+ * - DEV ビルド時: 常に true
+ * - PROD ビルド時: URL に ?debug=1 がある場合のみ true
+ */
+const _debugEnabled: boolean = (() => {
+    if (import.meta.env.DEV) return true;
+    try {
+        return new URLSearchParams(window.location.search).get('debug') === '1';
+    } catch {
+        return false;
+    }
+})();
 
 let _counter = 0;
 const _entries: LogEntry[] = [];
@@ -35,7 +51,7 @@ function formatTimestamp(): string {
 
 /** ログにエントリを追加する */
 export function addLog(level: LogLevel, message: string): void {
-    if (!import.meta.env.DEV) return;
+    if (!_debugEnabled) return;
 
     const entry: LogEntry = {
         id: _counter++,
