@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAudioEngine } from '../../audio/AudioEngineContext';
+import { customFilesDb } from '../../audio/customFilesDb';
 
 interface SoundsScreenProps {
     isDark: boolean;
@@ -12,11 +13,11 @@ interface SoundsScreenProps {
 const getUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
 
 const AMBIENT_SOUNDS = [
-    { id: 'rain', label: 'Rain', sub: '雨音', src: getUrl('ambient/rain.wav'), img: getUrl('images/rain.png') },
-    { id: 'forest', label: 'Forest', sub: '森', src: getUrl('ambient/forest.wav'), img: getUrl('images/forest.png') },
-    { id: 'cafe', label: 'Café', sub: 'カフェ', src: getUrl('ambient/cafe.wav'), img: getUrl('images/cafe.png'), imgPos: 'center 75%' },
-    { id: 'ocean', label: 'Ocean', sub: '波音', src: getUrl('ambient/ocean.wav'), img: getUrl('images/ocean.png') },
-    { id: 'bonfire', label: 'Bonfire', sub: '焚き火', src: getUrl('ambient/bonfire.wav'), img: getUrl('images/bonfire.png') },
+    { id: 'rain', label: 'Rain', sub: '雨音', src: getUrl('ambient/rain.mp3'), img: getUrl('images/rain.png') },
+    { id: 'forest', label: 'Forest', sub: '森', src: getUrl('ambient/forest.mp3'), img: getUrl('images/forest.png') },
+    { id: 'cafe', label: 'Café', sub: 'カフェ', src: getUrl('ambient/cafe.mp3'), img: getUrl('images/cafe.png'), imgPos: 'center 75%' },
+    { id: 'ocean', label: 'Ocean', sub: '波音', src: getUrl('ambient/ocean.mp3'), img: getUrl('images/ocean.png') },
+    { id: 'bonfire', label: 'Bonfire', sub: '焚き火', src: getUrl('ambient/bonfire.mp3'), img: getUrl('images/bonfire.png') },
 ];
 
 export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
@@ -81,6 +82,12 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
             const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
             const objectUrl = URL.createObjectURL(file);
             const name = file.name.replace(/\.[^.]+$/, '');
+            
+            // IndexedDBへの保存 (非同期・バックグラウンド)
+            customFilesDb.save(id, name, file).catch(err => {
+                console.error('カスタム音源の保存に失敗しました:', err);
+            });
+
             // グローバルステートに登録（停止状態でリストに追加）
             addCustomFile({ id, name, src: objectUrl });
         }

@@ -29,6 +29,7 @@ import { FadeController } from './FadeController';
 import { BUILT_IN_PRESETS, DEFAULT_PRESET_ID, findPresetById, loadCustomPresets, saveCustomPresets } from './presets';
 import { addLog } from './AudioLogger';
 import { useState } from 'react';
+import { customFilesDb } from './customFilesDb';
 
 // ===== localStorage キー =====
 const STORAGE_KEY = 'soundnest-state';
@@ -109,6 +110,11 @@ function audioReducer(state: AudioEngineState, action: AudioEngineAction): Audio
             return {
                 ...state,
                 customFiles: [...(state.customFiles ?? []), action.payload],
+            };
+        case 'LOAD_CUSTOM_FILES':
+            return {
+                ...state,
+                customFiles: action.payload,
             };
         case 'REMOVE_CUSTOM_FILE':
             return {
@@ -201,6 +207,25 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         const toSave = { ...state, isPlaying: false, soundscapeLayers: [], customFiles: [] };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     }, [state]);
+
+    // === IndexedDB からカスタム音源を復元 ===
+    useEffect(() => {
+        let mounted = true;
+        customFilesDb.loadAll().then(files => {
+            if (!mounted) return;
+            const entries = files.map(f => ({
+                id: f.id,
+                name: f.name,
+                src: URL.createObjectURL(f.blob)
+            }));
+            if (entries.length > 0) {
+                dispatch({ type: 'LOAD_CUSTOM_FILES', payload: entries });
+            }
+        }).catch(err => {
+            console.error('カスタム音源の復元に失敗:', err);
+        });
+        return () => { mounted = false; };
+    }, []);
 
     // === AudioContext の初期化 ===
     const ensureAudioContext = useCallback(async (): Promise<AudioContext> => {
@@ -739,6 +764,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             dispatch({ type: 'ADD_CUSTOM_FILE', payload: entry });
         }, []),
         removeCustomFile: useCallback((id: string) => {
+            customFilesDb.delete(id).catch(err => console.error('DBからの削除失敗:', err));
             dispatch({ type: 'REMOVE_CUSTOM_FILE', payload: id });
         }, []),
     };

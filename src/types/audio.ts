@@ -137,4 +137,5 @@ export type AudioEngineAction =
     | { type: 'UPDATE_SOUNDSCAPE_LAYER'; payload: { id: string } & Partial<SoundscapeLayer> }
     | { type: 'ADD_CUSTOM_FILE'; payload: CustomFileEntry }
     | { type: 'REMOVE_CUSTOM_FILE'; payload: string }
+    | { type: 'LOAD_CUSTOM_FILES'; payload: CustomFileEntry[] }
     | { type: 'LOAD_STATE'; payload: AudioEngineState };
