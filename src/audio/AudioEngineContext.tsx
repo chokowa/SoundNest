@@ -188,8 +188,10 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
     const mixerGainRef = useRef<GainNode | null>(null);
     const soundscapeSourcesRef = useRef<Map<string, { source: MediaElementAudioSourceNode; gain: GainNode; element: HTMLAudioElement }>>(new Map());
 
-    // === バックグラウンド再生維持（iOS/Android 対策） ===
+    // === バックグラウンド再生維持用・KeepAlive用 ===
     const backgroundAudioRef = useRef<HTMLAudioElement | null>(null);
+    const keepAliveNodeRef = useRef<AudioWorkletNode | null>(null);
+    
     // isPlaying の最新値を Ref で保持（コールバック内のクロージャ問題を回避）
     const isPlayingRef = useRef<boolean>(false);
 
@@ -233,6 +235,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/pink-noise-processor.js`);
         await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/brown-noise-processor.js`);
         await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/sub-bass-processor.js`);
+        await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/keep-alive-processor.js`);
 
         // ミキサーゲインノード（3つのWorkletをまとめる）
         const mixerGain = ctx.createGain();
@@ -274,6 +277,23 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             node.connect(mixerGain);
             workletNodesRef.current.set(type, node);
         }
+
+        // Keep-Alive ノードの作成（10秒間隔でPing送信）
+        const keepAliveNode = new AudioWorkletNode(ctx, 'keep-alive-processor');
+        keepAliveNode.port.postMessage({ type: 'setSampleRate', sampleRate: ctx.sampleRate });
+        keepAliveNode.port.postMessage({ type: 'setInterval', interval: 10 });
+        
+        keepAliveNode.port.onmessage = (event) => {
+            if (event.data.type === 'ping' && isPlayingRef.current) {
+                // サスペンド回避のためのログ出力（メインスレッドを動かす）
+                addLog('info', `[KeepAlive] Worker Ping received (Time: ${event.data.time.toFixed(1)}s)`);
+            }
+        };
+        
+        // destination にダミー接続しないと process() が駆動しない場合があるため接続
+        // ※プロセッサ側で無音出力にしているため、実際の音には影響しない
+        keepAliveNode.connect(ctx.destination);
+        keepAliveNodeRef.current = keepAliveNode;
 
         audioCtxRef.current = ctx;
         return ctx;
