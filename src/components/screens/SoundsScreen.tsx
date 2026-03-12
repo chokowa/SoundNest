@@ -13,11 +13,11 @@ interface SoundsScreenProps {
 const getUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
 
 const AMBIENT_SOUNDS = [
-    { id: 'rain', label: 'Rain', sub: '雨音', src: getUrl('ambient/rain.mp3'), img: getUrl('images/rain.png') },
-    { id: 'forest', label: 'Forest', sub: '森', src: getUrl('ambient/forest.mp3'), img: getUrl('images/forest.png') },
-    { id: 'cafe', label: 'Café', sub: 'カフェ', src: getUrl('ambient/cafe.mp3'), img: getUrl('images/cafe.png'), imgPos: 'center 75%' },
-    { id: 'ocean', label: 'Ocean', sub: '波音', src: getUrl('ambient/ocean.mp3'), img: getUrl('images/ocean.png') },
-    { id: 'bonfire', label: 'Bonfire', sub: '焚き火', src: getUrl('ambient/bonfire.mp3'), img: getUrl('images/bonfire.png') },
+    { id: 'rain', label: 'Rain', sub: '雨音', src: getUrl('ambient/rain.mp3'), img: getUrl('images/rain.png'), defaultVolume: 0.4 },
+    { id: 'forest', label: 'Forest', sub: '森', src: getUrl('ambient/forest.mp3'), img: getUrl('images/forest.png'), defaultVolume: 0.35 },
+    { id: 'cafe', label: 'Café', sub: 'カフェ', src: getUrl('ambient/cafe.mp3'), img: getUrl('images/cafe.png'), imgPos: 'center 75%', defaultVolume: 0.4 },
+    { id: 'ocean', label: 'Ocean', sub: '波音', src: getUrl('ambient/ocean.mp3'), img: getUrl('images/ocean.png'), defaultVolume: 0.35 },
+    { id: 'bonfire', label: 'Bonfire', sub: '焚き火', src: getUrl('ambient/bonfire.mp3'), img: getUrl('images/bonfire.png'), defaultVolume: 0.35 },
 ];
 
 export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
@@ -41,7 +41,7 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
                 id: sound.id,
                 name: sound.label,
                 src: sound.src,
-                volume: 0.3,
+                volume: sound.defaultVolume ?? 0.3,
                 loop: true,
             });
         }

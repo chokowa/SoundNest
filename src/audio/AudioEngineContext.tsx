@@ -491,8 +491,12 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         if (!audioCtxRef.current || !fadeControllerRef.current) return;
         const ctx = audioCtxRef.current;
 
-        // クロスフェードループ用の設定（秒）
-        const CROSSFADE_DURATION = 1.0;
+        // 音源長に応じた動的なクロスフェード時間(秒)を計算する関数
+        // 最長2.0秒、または音源全体の長さの10%の短い方を採用
+        const calcCrossfadeDuration = (duration: number) => {
+            if (!duration || !Number.isFinite(duration)) return 1.0;
+            return Math.min(2.0, duration * 0.1);
+        };
 
         // 音量コントロール用ゲイン
         const masterGain = ctx.createGain();
@@ -556,15 +560,31 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             currentInactive.audio.currentTime = 0;
             currentInactive.audio.play().catch(console.error);
 
+            // クロスフェード時間の算出
+            const duration = currentActive.audio.duration;
+            const crossfadeDuration = calcCrossfadeDuration(duration);
+
+            // 等電力 (Equal-Power) カーブの生成
+            // 直線的な音量変化ではなくサイン・コサイン波を用いることで、交差時の音量減衰を防ぐ
+            const steps = 32;
+            const fadeInCurve = new Float32Array(steps);
+            const fadeOutCurve = new Float32Array(steps);
+            for (let i = 0; i < steps; i++) {
+                const t = i / (steps - 1); // 0.0 ~ 1.0
+                fadeInCurve[i] = Math.sin(t * (Math.PI / 2));
+                fadeOutCurve[i] = Math.cos(t * (Math.PI / 2));
+            }
+
             // クロスフェードのスケジュール
             const now = ctx.currentTime;
+            
+            // 新しい音源をフェードイン
             currentInactive.fadeGain.gain.cancelScheduledValues(now);
-            currentInactive.fadeGain.gain.setValueAtTime(0, now);
-            currentInactive.fadeGain.gain.linearRampToValueAtTime(1, now + CROSSFADE_DURATION);
+            currentInactive.fadeGain.gain.setValueCurveAtTime(fadeInCurve, now, crossfadeDuration);
 
+            // 古い音源をフェードアウト
             currentActive.fadeGain.gain.cancelScheduledValues(now);
-            currentActive.fadeGain.gain.setValueAtTime(currentActive.fadeGain.gain.value, now);
-            currentActive.fadeGain.gain.linearRampToValueAtTime(0, now + CROSSFADE_DURATION);
+            currentActive.fadeGain.gain.setValueCurveAtTime(fadeOutCurve, now, crossfadeDuration);
 
             // 役割交代
             activePlayer = currentInactive;
@@ -592,9 +612,10 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
             const onTimeUpdate = () => {
                 if (isStopped || hasTriggered.value) return;
+                const duration = ap.audio.duration;
                 if (
-                    ap.audio.duration &&
-                    (ap.audio.duration - ap.audio.currentTime) <= CROSSFADE_DURATION
+                    duration &&
+                    (duration - ap.audio.currentTime) <= calcCrossfadeDuration(duration)
                 ) {
                     triggerCrossfade(ap, ip, hasTriggered, 'timeupdate');
                 }
