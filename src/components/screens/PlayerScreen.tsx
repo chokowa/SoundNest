@@ -363,14 +363,18 @@ export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
                                     </div>
                                     <div style={{
                                         fontSize: 11,
+                                        lineHeight: 1.5,
                                         fontWeight: 400,
                                         color: isActive ? 'rgba(255,255,255,0.65)' : 'var(--text-secondary)',
                                         fontFamily: 'Inter',
-                                        whiteSpace: 'nowrap',
+                                        /* 選択時は折り返し、非選択時は1行で省略 */
+                                        whiteSpace: isActive ? 'normal' : 'nowrap',
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
+                                        transition: 'all var(--transition-fast)',
+                                        marginTop: isActive ? 4 : 0,
                                     }}>
-                                        {isActive && isPlaying ? '▶ ' : ''}{(preset.builtIn ? t(`presets.${preset.id}.desc`) : preset.description).split('。')[0]}
+                                        {isActive && isPlaying ? '▶ ' : ''}{preset.builtIn ? t(`presets.${preset.id}.desc`) : preset.description}
                                     </div>
                                 </div>
                                 {/* アクティブインジケータ */}

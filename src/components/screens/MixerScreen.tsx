@@ -169,14 +169,28 @@ export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
 
     const handleSavePreset = useCallback(() => {
         if (!presetName.trim()) return;
+
+        // 全ての有効なチャンネルを抽出して説明文を作成
+        const activeChannels = CHANNELS
+            .filter(ch => blend[ch.key] > 0)
+            .map(ch => `${ch.label} ${Math.round(blend[ch.key] * 100)}%`);
+
+        // 有効な環境音を抽出して説明文に追加
+        const activeSounds = state.soundscapeLayers
+            .filter(l => l.volume > 0)
+            .map(l => `${l.name} ${Math.round(l.volume * 100)}%`);
+
+        const description = [...activeChannels, ...activeSounds].join('  ·  ');
+
         const newPreset: Preset = {
             id: `custom-${Date.now()}`,
             name: presetName.trim(),
-            description: `Brown ${Math.round(blend.brown * 100)}%  ·  Pink ${Math.round(blend.pink * 100)}%`,
+            description: description,
             blend: { ...blend },
             toneId: activeToneId ?? undefined,
             eq: { ...state.eq },
             harmonicExciter: { ...state.harmonicExciter },
+            soundscapeLayers: state.soundscapeLayers.map(l => ({ ...l })), // 現在のサウンドスケープを保存
             builtIn: false,
         };
         saveCustomPreset(newPreset);
@@ -376,7 +390,10 @@ export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
                                 ))}
                             </div>
                             <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'Inter' }}>
-                                {CHANNELS.map(ch => `${ch.label} ${Math.round(blend[ch.key] * 100)}%`).join('  ·  ')}
+                                {[
+                                    ...CHANNELS.filter(ch => blend[ch.key] > 0).map(ch => `${ch.label} ${Math.round(blend[ch.key] * 100)}%`),
+                                    ...state.soundscapeLayers.filter(l => l.volume > 0).map(l => `${l.name} ${Math.round(l.volume * 100)}%`)
+                                ].join('  ·  ')}
                             </span>
                         </div>
 

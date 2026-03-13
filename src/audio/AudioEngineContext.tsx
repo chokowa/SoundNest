@@ -88,6 +88,8 @@ function audioReducer(state: AudioEngineState, action: AudioEngineAction): Audio
                 harmonicExciter: { ...action.payload.harmonicExciter },
                 activePresetId: action.payload.id,
                 activeToneId: action.payload.toneId ?? null,
+                // カスタムプリセットに環境音が含まれる場合はそれらを適用、含まれない（組み込み等）場合は現状維持
+                soundscapeLayers: action.payload.soundscapeLayers ?? state.soundscapeLayers,
             };
         case 'ADD_SOUNDSCAPE_LAYER':
             return {

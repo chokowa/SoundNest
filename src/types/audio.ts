@@ -94,6 +94,8 @@ export interface Preset {
     eq: EQSettings;
     /** 仮想低音設定 */
     harmonicExciter: HarmonicExciterSettings;
+    /** (オプショナル) サウンドスケープ（環境音）レイヤー */
+    soundscapeLayers?: SoundscapeLayer[];
     /** 組み込みプリセットか */
     builtIn: boolean;
 }
