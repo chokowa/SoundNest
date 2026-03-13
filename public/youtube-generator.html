@@ -1,0 +1,298 @@
+[ignoring loop detection]
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>SoundNest WAV Generator (Fixed PRO)</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #eee; padding: 20px; max-width: 600px; margin: 0 auto; }
+        h1 { text-align: center; }
+        .box { background: #1e1e1e; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .row { display: flex; align-items: center; margin-bottom: 10px; }
+        .row label { width: 120px; }
+        input[type=range] { flex: 1; }
+        .val { width: 50px; text-align: right; }
+        select, button { width: 100%; padding: 10px; font-size: 16px; margin-bottom: 15px; }
+        button { color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+        button:disabled { background: #444; }
+        #btn-export { background: #10B981; }
+        #btn-play { background: #3B82F6; }
+        #btn-play.playing { background: #EF4444; }
+        #log { font-weight: bold; color: #10B981; text-align: center; word-break: break-all; margin-top: 10px; }
+        .error { color: #EF4444 !important; }
+    </style>
+</head>
+<body>
+    <h1>WAV Export Tool (PRO)</h1>
+    
+    <div class="box">
+        <h3>ノイズ ミックス</h3>
+        <div class="row"><label>ピンクノイズ</label><input type="range" id="pink" min="0" max="100" value="80"><span class="val" id="pink-val">80%</span></div>
+        <div class="row"><label>ブラウン</label><input type="range" id="brown" min="0" max="100" value="40"><span class="val" id="brown-val">40%</span></div>
+        <div class="row"><label>ホワイト</label><input type="range" id="white" min="0" max="100" value="0"><span class="val" id="white-val">0%</span></div>
+        <div class="row"><label>サブベース</label><input type="range" id="sub" min="0" max="100" value="20"><span class="val" id="sub-val">20%</span></div>
+    </div>
+
+    <div class="box">
+        <h3>音質 (Tone) 設定</h3>
+        <select id="tone">
+            <option value="deep">Deep (深く重い音, 400Hz LP)</option>
+            <option value="muffled">Muffled (こもった音, 500Hz LP)</option>
+            <option value="clear">Clear (クリアな音, 1500Hz LP)</option>
+            <option value="natural" selected>Natural (原音そのまま)</option>
+        </select>
+    </div>
+
+    <div class="box">
+        <button id="btn-play">🔊 テスト再生を開始</button>
+        <hr style="border: 1px solid #333; margin: 15px 0;">
+        <h3>書き出し時間</h3>
+        <select id="dur">
+            <option value="60">1分</option>
+            <option value="300">5分</option>
+            <option value="600" selected>10分</option>
+            <option value="1800">30分</option>
+        </select>
+        <button id="btn-export">⚙️ 高音質 WAV を生成する</button>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        const TONES = {
+            deep: { lowShelf: 10, peak: 8, lowpass: 400 },
+            muffled: { lowShelf: 4, peak: 2, lowpass: 500 },
+            clear: { lowShelf: -4, peak: 0, lowpass: 1500 },
+            natural: { lowShelf: 0, peak: 0, lowpass: 20000 }
+        };
+        const noises = ['pink', 'brown', 'white', 'sub'];
+
+        let liveCtx = null;
+        let liveNodes = {};
+        let liveFilters = {};
+        let isPlaying = false;
+
+        const updateLiveParams = () => {
+            if (!isPlaying || !liveCtx) return;
+            noises.forEach(id => {
+                const val = parseInt(document.getElementById(id).value, 10) / 100;
+                if(liveNodes[id]) {
+                    const param = liveNodes[id].parameters.get('gain');
+                    if(param) param.setTargetAtTime(val, liveCtx.currentTime, 0.05); // スムーズな変更
+                }
+            });
+
+            const tSet = TONES[document.getElementById('tone').value];
+            if(liveFilters.lowShelf) liveFilters.lowShelf.gain.setTargetAtTime(tSet.lowShelf, liveCtx.currentTime, 0.05);
+            if(liveFilters.peaking) liveFilters.peaking.gain.setTargetAtTime(tSet.peak, liveCtx.currentTime, 0.05);
+            if(liveFilters.lowpass) liveFilters.lowpass.frequency.setTargetAtTime(Math.min(tSet.lowpass, liveCtx.sampleRate / 2), liveCtx.currentTime, 0.05);
+        };
+
+        const getWorkletUrl = (name) => {
+            const basePath = window.location.pathname.includes('/SoundNest/') ? '/SoundNest/' : '/';
+            return basePath + 'worklets/' + name + '-processor.js';
+        };
+
+        // イベントリスナー登録
+        noises.forEach(id => {
+            document.getElementById(id).addEventListener('input', e => {
+                document.getElementById(id + '-val').innerText = e.target.value + '%';
+                updateLiveParams();
+            });
+        });
+        document.getElementById('tone').addEventListener('change', updateLiveParams);
+
+        // ■ テスト再生
+        const btnPlay = document.getElementById('btn-play');
+        btnPlay.addEventListener('click', async () => {
+            try {
+                if (isPlaying) {
+                    if(liveCtx) { await liveCtx.close(); liveCtx = null; }
+                    isPlaying = false;
+                    btnPlay.innerText = "🔊 テスト再生を開始";
+                    btnPlay.classList.remove('playing');
+                    return;
+                }
+                
+                btnPlay.disabled = true;
+                btnPlay.innerText = "準備中...";
+                
+                liveCtx = new AudioContext();
+                await liveCtx.resume();
+
+                await liveCtx.audioWorklet.addModule(getWorkletUrl('pink-noise'));
+                await liveCtx.audioWorklet.addModule(getWorkletUrl('brown-noise'));
+                await liveCtx.audioWorklet.addModule(getWorkletUrl('white-noise'));
+                await liveCtx.audioWorklet.addModule(getWorkletUrl('sub-bass'));
+
+                const tSet = TONES[document.getElementById('tone').value];
+                
+                liveFilters.lowShelf = liveCtx.createBiquadFilter();
+                liveFilters.lowShelf.type = 'lowshelf';
+                liveFilters.lowShelf.frequency.value = 125;
+                liveFilters.lowShelf.gain.value = tSet.lowShelf;
+
+                liveFilters.peaking = liveCtx.createBiquadFilter();
+                liveFilters.peaking.type = 'peaking';
+                liveFilters.peaking.frequency.value = 63;
+                liveFilters.peaking.Q.value = 1.5;
+                liveFilters.peaking.gain.value = tSet.peak;
+
+                liveFilters.lowpass = liveCtx.createBiquadFilter();
+                liveFilters.lowpass.type = 'lowpass';
+                liveFilters.lowpass.frequency.value = Math.min(tSet.lowpass, liveCtx.sampleRate / 2);
+                liveFilters.lowpass.Q.value = 0.707;
+
+                liveFilters.lowShelf.connect(liveFilters.peaking);
+                liveFilters.peaking.connect(liveFilters.lowpass);
+                // 【追加】音割れ防止のためのマスターリミッター（Live再生用）
+                const compressor = liveCtx.createDynamicsCompressor();
+                compressor.threshold.value = -1.0;
+                compressor.knee.value = 5.0;
+                compressor.ratio.value = 20.0;
+                compressor.attack.value = 0.005;
+                compressor.release.value = 0.050;
+
+                liveFilters.lowpass.connect(compressor);
+                compressor.connect(liveCtx.destination);
+
+                noises.forEach(id => {
+                    const val = parseInt(document.getElementById(id).value, 10) / 100;
+                    let wName = id === 'sub' ? 'sub-bass-processor' : id + '-noise-processor';
+                    // ⚠️ ここが重要: デフォルトのモノラル(1ch)で初期化する。
+                    // 2ch指定だとPinkNoiseProcessor等の内部で共有変数の競合が起き、計算がNaN(無音)に発散する。
+                    const node = new AudioWorkletNode(liveCtx, wName);
+                    const param = node.parameters.get('gain');
+                    if (param) param.value = val;
+                    node.connect(liveFilters.lowShelf);
+                    liveNodes[id] = node;
+                });
+
+                isPlaying = true;
+                btnPlay.innerText = "⏹ テスト再生を停止";
+                btnPlay.classList.add('playing');
+            } catch(e) {
+                alert("プレビュー再生エラー: " + e.message);
+                console.error(e);
+            }
+            btnPlay.disabled = false;
+        });
+
+        // ■ WAVエクスポート機能
+        document.getElementById('btn-export').addEventListener('click', async () => {
+            const logEl = document.getElementById('log');
+            const btn = document.getElementById('btn-export');
+            if(isPlaying) btnPlay.click();
+
+            btn.disabled = true;
+            logEl.classList.remove('error');
+            logEl.innerText = "⏳ レンダリング中...数秒お待ちください";
+
+            const durSec = parseInt(document.getElementById('dur').value, 10);
+            const sampleRate = 44100; // CD品質
+            const ctx = new OfflineAudioContext(2, sampleRate * durSec, sampleRate);
+
+            try {
+                await ctx.audioWorklet.addModule(getWorkletUrl('pink-noise'));
+                await ctx.audioWorklet.addModule(getWorkletUrl('brown-noise'));
+                await ctx.audioWorklet.addModule(getWorkletUrl('white-noise'));
+                await ctx.audioWorklet.addModule(getWorkletUrl('sub-bass'));
+
+                const tSet = TONES[document.getElementById('tone').value];
+                const ls = ctx.createBiquadFilter(); ls.type = 'lowshelf'; ls.frequency.value = 125; ls.gain.value = tSet.lowShelf;
+                const pk = ctx.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 63; pk.Q.value = 1.5; pk.gain.value = tSet.peak;
+                const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(tSet.lowpass, sampleRate/2); lp.Q.value = 0.707;
+
+                ls.connect(pk); pk.connect(lp); lp.connect(ctx.destination);
+
+                noises.forEach(id => {
+                    const val = parseInt(document.getElementById(id).value, 10) / 100;
+                    if (val > 0) {
+                        let wName = id === 'sub' ? 'sub-bass-processor' : id + '-noise-processor';
+                        // ⚠️ プレビュー同様、モノラルで生成
+                        const node = new AudioWorkletNode(ctx, wName);
+                        const param = node.parameters.get('gain');
+                        if (param) param.value = val;
+                        node.connect(ls);
+                    }
+                });
+
+                const buffer = await ctx.startRendering();
+                logEl.innerText = "⏳ WAV変換中...";
+                
+                // 【安全装置】波形が本当に作られたか冒頭をチェック
+                const checkLen = Math.min(buffer.length, sampleRate);
+                let hasSound = false;
+                const dataL = buffer.getChannelData(0);
+                for(let i=0; i<checkLen; i++) {
+                    // もしNaN等の異常値になっていたら0とみなす
+                    if (dataL[i] !== 0 && !Number.isNaN(dataL[i])) { 
+                        hasSound = true; 
+                        break; 
+                    }
+                }
+                
+                if (!hasSound) {
+                    throw new Error("生成された音声が完全に無音です。(内部計算エラー)");
+                }
+
+                const blob = await encodeWavFast(buffer, logEl);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); 
+                a.href = url; 
+                a.download = `SoundNest_PRO_${durSec}sec.wav`; 
+                a.click();
+                
+                logEl.innerText = "✅ 生成・保存が完了しました！";
+            } catch (err) {
+                logEl.classList.add('error');
+                logEl.innerText = "❌ エラー: " + err.message;
+                console.error(err);
+            }
+            btn.disabled = false;
+        });
+
+        async function encodeWavFast(ab, logEl) {
+            const len = ab.length, nCh = ab.numberOfChannels, rate = ab.sampleRate;
+            
+            // ピーク走査とノーマライズ（クリッピング対策）
+            if (logEl) logEl.innerText = "🔍 音量最適化（ノーマライズ）を解析中...";
+            let peak = 0;
+            for(let c=0; c<nCh; c++) {
+                const data = ab.getChannelData(c);
+                for(let i=0; i<len; i++) {
+                    const absVal = Math.abs(data[i]);
+                    // NaN の除外はエンコード内で行なうが、ここではピーク判定のみ
+                    if (!Number.isNaN(absVal) && absVal > peak) peak = absVal;
+                }
+            }
+            // 閾値(1.0)以上なら、波形全体を縮小(0.99)する安全係数を求める。超えていなければそのまま(1.0)。
+            const normalizeRatio = peak > 1.0 ? 0.99 / peak : 1.0;
+            if (logEl) logEl.innerText = "⏳ WAVエンコード中... (ピーク: " + peak.toFixed(2) + " / 係数: " + normalizeRatio.toFixed(3) + ")";
+
+            const dataSize = len * nCh * 2;
+            const buf = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buf);
+            const writeString = (pos, str) => { for(let i=0; i<str.length; i++) view.setUint8(pos+i, str.charCodeAt(i)); };
+            
+            writeString(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeString(8, 'WAVE');
+            writeString(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+            view.setUint16(22, nCh, true); view.setUint32(24, rate, true);
+            view.setUint32(28, rate * nCh * 2, true); view.setUint16(32, nCh * 2, true);
+            view.setUint16(34, 16, true); writeString(36, 'data'); view.setUint32(40, dataSize, true);
+            
+            let off = 44;
+            for(let i=0; i<len; i++) {
+                for(let c=0; c<nCh; c++) {
+                    let s = ab.getChannelData(c)[i];
+                    // NaNの場合は無音。それ以外はノーマライズ係数をかけて安全圏内に収める
+                    if (Number.isNaN(s)) s = 0;
+                    else s = Math.max(-1, Math.min(1, s * normalizeRatio));
+                    view.setInt16(off, s < 0 ? s * 32768 : s * 32767, true);
+                    off += 2;
+                }
+            }
+            return new Blob([buf], {type: 'audio/wav'});
+        }
+    </script>
+</body>
+</html>

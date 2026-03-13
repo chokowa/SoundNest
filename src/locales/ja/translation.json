@@ -1,7 +1,7 @@
 {
     "app": {
         "tabPlayer": "Player",
-        "tabSounds": "Sounds",
+        "tabAtmos": "Atmos",
         "tabMixer": "Mixer"
     },
     "player": {
@@ -13,11 +13,17 @@
         "toggleTheme": "テーマ切り替え",
         "play": "再生",
         "stop": "停止",
-        "fadeToggle": "フェード切り替え"
+        "fadeToggle": "フェード切り替え",
+        "addToScenes": "Add to Scenes",
+        "saveSceneTitle": "シーンの保存",
+        "saveAsScene": "シーンとして保存",
+        "cancel": "キャンセル"
     },
     "mixer": {
         "toggleLanguage": "言語切り替え",
         "toggleTheme": "テーマ切り替え",
+        "noiseMixHeader": "NOISE MIX",
+        "atmosMasterHeader": "ATMOS MASTER",
         "toneHeader": "TONE (EQ & HARMONICS)",
         "yourCustomMix": "Your custom mix",
         "saveAsPreset": "Save as Preset",
@@ -31,7 +37,7 @@
     "sounds": {
         "toggleLanguage": "言語切り替え",
         "toggleTheme": "テーマ切り替え",
-        "ambientLibrary": "AMBIENT LIBRARY",
+        "ambientLibrary": "ATMOS LIBRARY",
         "playing": "再生中",
         "tapToPlay": "タップで再生",
         "customSound": "カスタム",
@@ -72,6 +78,22 @@
         "focus-work": {
             "name": "作業用",
             "desc": "フラットなピンクノイズで環境音をニュートラルにマスキング。"
+        }
+    },
+    "onboarding": {
+        "next": "次へ",
+        "start": "はじめる",
+        "slide1": {
+            "title": "騒音を「音」で包み込む",
+            "description": "脳は静寂の中での「突発的な音」に敏感です。一定の周波数を網羅するノイズを流すことで、不快な足音や話し声が背景に溶け込み、脳が反応しにくくなります。"
+        },
+        "slide2": {
+            "title": "理想の集中・睡眠環境へ",
+            "description": "複数のノイズと、雨・焚き火などの環境音（カード形式のUI）を自由にブレンド。お気に入りの組み合わせは「シーン」として保存し、ワンタップで呼び出せます。"
+        },
+        "slide3": {
+            "title": "途切れない静寂のために",
+            "description": "画面をオフにしても再生を続けるため、Androidをご利用の方は、OSによる強制終了を防ぐ「バッテリー最適化」を「制限なし」に設定することをお勧めします。"
         }
     }
 }

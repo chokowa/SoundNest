@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAudioEngine } from '../../audio/AudioEngineContext';
 import { AudioLogPanel } from '../controls/AudioLogPanel';
@@ -11,8 +11,11 @@ interface PlayerScreenProps {
 
 export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
     const { t, i18n } = useTranslation();
-    const { state, play, stop, applyPreset, setMaster, setFade, deleteCustomPreset, presets } = useAudioEngine();
-    const { isPlaying, master, fade, activePresetId } = state;
+    const { state, play, stop, applyPreset, setMaster, setFade, deleteCustomPreset, presets, saveCustomPreset } = useAudioEngine();
+    const { isPlaying, master, fade, activePresetId, blend, activeToneId } = state;
+
+    const [showSaveModal, setShowSaveModal] = useState(false);
+    const [presetName, setPresetName] = useState('');
 
     const toggleLanguage = useCallback(() => {
         const nextLang = i18n.language.startsWith('ja') ? 'en' : 'ja';
@@ -26,6 +29,40 @@ export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
             await play();
         }
     }, [isPlaying, play, stop]);
+
+    const handleSaveScene = useCallback(() => {
+        if (!presetName.trim()) return;
+
+        const NOISE_LABELS: Record<string, string> = {
+            brown: 'Brown', pink: 'Pink', white: 'White', sub: 'Sub'
+        };
+
+        const activeChannels = Object.entries(blend)
+            .filter(([_, v]) => v > 0)
+            .map(([k, v]) => `${NOISE_LABELS[k] || k} ${Math.round(v * 100)}%`);
+
+        const activeSounds = state.soundscapeLayers
+            .filter(l => l.volume > 0)
+            .map(l => `${l.name} ${Math.round(l.volume * 100)}%`);
+
+        const description = [...activeChannels, ...activeSounds].join('  ·  ');
+
+        const newPreset: any = {
+            id: `custom-${Date.now()}`,
+            name: presetName.trim(),
+            description: description,
+            blend: { ...blend },
+            toneId: activeToneId ?? undefined,
+            eq: { ...state.eq },
+            harmonicExciter: { ...state.harmonicExciter },
+            soundscapeLayers: state.soundscapeLayers.map(l => ({ ...l })),
+            builtIn: false,
+        };
+        saveCustomPreset(newPreset);
+        applyPreset(newPreset);
+        setShowSaveModal(false);
+        setPresetName('');
+    }, [presetName, blend, state, activeToneId, saveCustomPreset, applyPreset]);
 
     const activePreset = presets.find((p: { id: string }) => p.id === activePresetId);
 
@@ -420,8 +457,60 @@ export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
                             </button>
                         );
                     })}
+
+                    {/* Add to Scenes ボタン */}
+                    <button
+                        onClick={() => setShowSaveModal(true)}
+                        style={{
+                            width: '100%', minHeight: 56,
+                            background: 'transparent',
+                            borderRadius: 'var(--radius-card)',
+                            border: '1.5px dashed var(--border-strong)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            gap: 10, padding: '12px 18px', cursor: 'pointer',
+                            color: 'var(--text-muted)',
+                            fontFamily: 'Inter',
+                            transition: 'all var(--transition-fast)',
+                            marginTop: 10,
+                        }}
+                    >
+                        <span style={{ fontSize: 18, fontWeight: 300 }}>+</span>
+                        <span style={{ fontSize: 14, fontWeight: 500 }}>{t('player.addToScenes', 'Add to Scenes')}</span>
+                    </button>
                 </div>
             </div>
+
+            {/* 保存モーダル */}
+            {showSaveModal && (
+                <div
+                    style={{
+                        position: 'fixed', inset: 0, background: 'rgba(28,28,28,0.75)', backdropFilter: 'blur(4px)',
+                        display: 'flex', alignItems: 'flex-end', zIndex: 1000,
+                    }}
+                    onClick={e => { if (e.target === e.currentTarget) setShowSaveModal(false); }}
+                >
+                    <div className="animate-slide-up" style={{ width: '100%', background: 'var(--bg-card)', borderRadius: '24px 24px 0 0', padding: '28px 24px max(40px, calc(16px + env(safe-area-inset-bottom)))', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                        <div style={{ display: 'flex', justifyContent: 'center' }}><div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--border-default)' }} /></div>
+                        <div><div style={{ fontSize: 24, fontWeight: 300, color: 'var(--text-primary)', fontFamily: 'Inter' }}>{t('player.saveSceneTitle', 'Save Scene')}</div></div>
+                        <input
+                            type="text" value={presetName}
+                            onChange={e => setPresetName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleSaveScene(); }}
+                            placeholder={i18n.language.startsWith('ja') ? 'シーン名を入力' : 'Scene Name'}
+                            autoFocus
+                            style={{ width: '100%', height: 56, borderRadius: 12, border: '1.5px solid var(--accent-primary)', background: 'var(--bg-muted)', padding: '0 16px', fontSize: 16, color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <button className="nm-btn-primary" style={{ width: '100%', height: 56, borderRadius: 12 }} onClick={handleSaveScene} disabled={!presetName.trim()}>
+                                {t('player.saveAsScene', 'Save as Scene')}
+                            </button>
+                            <button onClick={() => setShowSaveModal(false)} style={{ width: '100%', height: 48, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                {t('player.cancel', 'Cancel')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* デバッグログパネル — DEVビルドのみ表示、本番ビルドでは自動的に非表示 */}
             <AudioLogPanel />

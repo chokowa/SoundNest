@@ -52,6 +52,8 @@ export interface FadeSettings {
 export interface MasterSettings {
     /** マスターボリューム (0.0 ~ 1.0) */
     volume: number;
+    /** 環境音（Sounds）のマスターボリューム (0.0 ~ 1.0) */
+    ambientMasterVolume: number;
 }
 
 /** サウンドスケープ（自然音）レイヤー */
@@ -140,4 +142,5 @@ export type AudioEngineAction =
     | { type: 'ADD_CUSTOM_FILE'; payload: CustomFileEntry }
     | { type: 'REMOVE_CUSTOM_FILE'; payload: string }
     | { type: 'LOAD_CUSTOM_FILES'; payload: CustomFileEntry[] }
-    | { type: 'LOAD_STATE'; payload: AudioEngineState };
+    | { type: 'LOAD_STATE'; payload: AudioEngineState }
+    | { type: 'SET_AMBIENT_MASTER_VOLUME'; payload: number };

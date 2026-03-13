@@ -43,7 +43,7 @@ const initialState: AudioEngineState = {
     eq: { ...defaultPreset.eq },
     harmonicExciter: { ...defaultPreset.harmonicExciter },
     fade: { enabled: true, duration: 5 },
-    master: { volume: 0.5 },
+    master: { volume: 0.5, ambientMasterVolume: 0.5 },
     activePresetId: DEFAULT_PRESET_ID,
     activeToneId: defaultPreset.toneId ?? null,
     soundscapeLayers: [],
@@ -124,6 +124,12 @@ function audioReducer(state: AudioEngineState, action: AudioEngineAction): Audio
                 ...state,
                 customFiles: (state.customFiles ?? []).filter(f => f.id !== action.payload),
             };
+        case 'SET_AMBIENT_MASTER_VOLUME':
+            return {
+                ...state,
+                master: { ...state.master, ambientMasterVolume: action.payload },
+                activePresetId: null,
+            };
         case 'LOAD_STATE':
             return { ...action.payload, customFiles: action.payload.customFiles ?? [] };
         default:
@@ -143,6 +149,7 @@ interface AudioEngineContextValue {
     setTone: (toneId: ToneId) => void;
     setFade: (fade: Partial<FadeSettings>) => void;
     setMaster: (master: Partial<MasterSettings>) => void;
+    setAmbientMasterVolume: (volume: number) => void;
     applyPreset: (preset: Preset) => void;
     addSoundscapeFromFile: (file: File) => void;
     addSoundscapeLayer: (layer: SoundscapeLayer) => void;
@@ -171,6 +178,10 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 // 不正な値のバリデーション・フォールバック
                 if (!parsed.blend || typeof parsed.blend.brown !== 'number') {
                     throw new Error('Invalid state'); // catchに落として初期化させる
+                }
+                // ambientMasterVolume のフォールバック
+                if (parsed.master && typeof parsed.master.ambientMasterVolume !== 'number') {
+                    parsed.master.ambientMasterVolume = 0.5;
                 }
                 // 存在しないプリセットIDが保存されている場合はnullにフォールバック（状態は保持）
                 if (parsed.activePresetId && !findPresetById(parsed.activePresetId)) {
@@ -723,10 +734,11 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 if (!soundscapeSourcesRef.current.has(layer.id)) {
                     connectSoundscapeLayer(layer);
                 } else {
-                    // 音量のみ更新（connectSoundscapeLayer 内の masterGain に対する操作）
+                    // 音量のみ更新（マスターボリュームを考慮）
                     const entry = soundscapeSourcesRef.current.get(layer.id);
                     if (entry && audioCtxRef.current) {
-                        entry.gain.gain.setTargetAtTime(layer.volume, audioCtxRef.current.currentTime, 0.05);
+                        const effectiveVolume = layer.volume * state.master.ambientMasterVolume;
+                        entry.gain.gain.setTargetAtTime(effectiveVolume, audioCtxRef.current.currentTime, 0.05);
                     }
                 }
             }
@@ -751,14 +763,15 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
     const updateSoundscape = useCallback((id: string, updates: Partial<SoundscapeLayer>) => {
         dispatch({ type: 'UPDATE_SOUNDSCAPE_LAYER', payload: { id, ...updates } });
-        // 音量変更の即時反映
-        if (updates.volume !== undefined) {
+        // 音量変更の即時反映（マスターボリュームを考慮）
+        if (updates.volume !== undefined || updates.volume === 0) {
             const entry = soundscapeSourcesRef.current.get(id);
             if (entry && audioCtxRef.current) {
-                entry.gain.gain.setTargetAtTime(updates.volume, audioCtxRef.current.currentTime, 0.05);
+                const effectiveVolume = (updates.volume ?? 0) * state.master.ambientMasterVolume;
+                entry.gain.gain.setTargetAtTime(effectiveVolume, audioCtxRef.current.currentTime, 0.05);
             }
         }
-    }, []);
+    }, [state.master.ambientMasterVolume]);
 
     const getRMSLevel = useCallback((): number => {
         return masterBusRef.current?.getRMSLevel() ?? 0;
@@ -794,6 +807,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         setTone,
         setFade,
         setMaster,
+        setAmbientMasterVolume: (volume: number) => dispatch({ type: 'SET_AMBIENT_MASTER_VOLUME', payload: volume }),
         applyPreset,
         addSoundscapeFromFile,
         addSoundscapeLayer,

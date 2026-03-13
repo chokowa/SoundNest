@@ -103,7 +103,7 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
                         SOUNDNEST
                     </div>
                     <div style={{ fontSize: 32, fontWeight: 300, letterSpacing: -0.5, color: 'var(--text-primary)', fontFamily: 'Inter', marginTop: 4 }}>
-                        Sounds
+                        {t('app.tabAtmos', 'Atmos')}
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>

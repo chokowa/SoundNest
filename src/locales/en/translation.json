@@ -1,7 +1,7 @@
 {
     "app": {
         "tabPlayer": "Player",
-        "tabSounds": "Sounds",
+        "tabAtmos": "Atmos",
         "tabMixer": "Mixer"
     },
     "player": {
@@ -13,11 +13,17 @@
         "toggleTheme": "Toggle Theme",
         "play": "Play",
         "stop": "Stop",
-        "fadeToggle": "Toggle Fade"
+        "fadeToggle": "Toggle Fade",
+        "addToScenes": "Add to Scenes",
+        "saveSceneTitle": "Save Scene",
+        "saveAsScene": "Save as Scene",
+        "cancel": "Cancel"
     },
     "mixer": {
         "toggleLanguage": "Toggle Language",
         "toggleTheme": "Toggle Theme",
+        "noiseMixHeader": "NOISE MIX",
+        "atmosMasterHeader": "ATMOS MASTER",
         "toneHeader": "TONE (EQ & HARMONICS)",
         "yourCustomMix": "Your custom mix",
         "saveAsPreset": "Save as Preset",
@@ -31,7 +37,7 @@
     "sounds": {
         "toggleLanguage": "Toggle Language",
         "toggleTheme": "Toggle Theme",
-        "ambientLibrary": "AMBIENT LIBRARY",
+        "ambientLibrary": "ATMOS LIBRARY",
         "playing": "Playing",
         "tapToPlay": "Tap to Play",
         "customSound": "Custom",
@@ -72,6 +78,22 @@
         "focus-work": {
             "name": "Deep Focus",
             "desc": "Flat pink noise to block distractions."
+        }
+    },
+    "onboarding": {
+        "next": "Next",
+        "start": "Get Started",
+        "slide1": {
+            "title": "Envelope Noise with Sound",
+            "description": "Your brain is sensitive to sudden sounds in silence. By playing a broad range of frequencies (noise), unpleasant sounds like footsteps or voices blend into the background, making it harder for your brain to react."
+        },
+        "slide2": {
+            "title": "Design Your Perfect Space",
+            "description": "Freely blend multiple noises with ambient sounds like rain or a campfire. Save your favorite combinations as 'Scenes' and recall them with a single tap."
+        },
+        "slide3": {
+            "title": "Keep Quiet All Day",
+            "description": "To continue playing even when the screen is off, we recommend Android users set 'Battery Optimization' to 'Unrestricted' to prevent the OS from stopping the app."
         }
     }
 }
