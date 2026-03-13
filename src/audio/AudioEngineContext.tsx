@@ -81,26 +81,6 @@ function audioReducer(state: AudioEngineState, action: AudioEngineAction): Audio
         case 'SET_MASTER':
             return { ...state, master: { ...state.master, ...action.payload }, activePresetId: null };
         case 'APPLY_PRESET': {
-            let nextSoundscapeLayers = state.soundscapeLayers;
-
-            if (action.payload.soundscapeLayers) {
-                // カスタムプリセットに環境音が含まれる場合:
-                // 1. まず現在の全レイヤーを音量 0 にリセット
-                const resetLayers = state.soundscapeLayers.map(l => ({ ...l, volume: 0 }));
-                // 2. プリセットに含まれるレイヤーの情報を上書き（または追加）
-                const presetLayers = action.payload.soundscapeLayers;
-                
-                // マップ形式で統合（IDが一致するものはプリセット優先、それ以外は音量0のまま残す）
-                const layerMap = new Map(resetLayers.map(l => [l.id, l]));
-                presetLayers.forEach(pl => {
-                    layerMap.set(pl.id, { ...pl });
-                });
-                nextSoundscapeLayers = Array.from(layerMap.values());
-            } else {
-                // 組み込みプリセットなど環境音データがない場合: すべて 0 に
-                nextSoundscapeLayers = state.soundscapeLayers.map(l => ({ ...l, volume: 0 }));
-            }
-
             return {
                 ...state,
                 blend: { ...action.payload.blend },
@@ -108,7 +88,8 @@ function audioReducer(state: AudioEngineState, action: AudioEngineAction): Audio
                 harmonicExciter: { ...action.payload.harmonicExciter },
                 activePresetId: action.payload.id,
                 activeToneId: action.payload.toneId ?? null,
-                soundscapeLayers: nextSoundscapeLayers,
+                // 環境音が保存されている場合はそれを適用、なければ空（すべて停止）にする
+                soundscapeLayers: action.payload.soundscapeLayers ?? [],
             };
         }
         case 'ADD_SOUNDSCAPE_LAYER':
@@ -725,9 +706,28 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
     // 再生状態変更時、サウンドスケープの再生/停止を連動
     useEffect(() => {
         if (state.isPlaying) {
+            // 1. 削除されたレイヤーを停止・クリーンアップ
+            const stateLayerIds = new Set(state.soundscapeLayers.map(l => l.id));
+            for (const [id, entry] of soundscapeSourcesRef.current.entries()) {
+                if (!stateLayerIds.has(id)) {
+                    entry.element.pause();
+                    entry.source.disconnect();
+                    entry.gain.disconnect();
+                    URL.revokeObjectURL(entry.element.src);
+                    soundscapeSourcesRef.current.delete(id);
+                }
+            }
+
+            // 2. 新しいレイヤーを接続、既存の音量を更新
             for (const layer of state.soundscapeLayers) {
                 if (!soundscapeSourcesRef.current.has(layer.id)) {
                     connectSoundscapeLayer(layer);
+                } else {
+                    // 音量のみ更新（connectSoundscapeLayer 内の masterGain に対する操作）
+                    const entry = soundscapeSourcesRef.current.get(layer.id);
+                    if (entry && audioCtxRef.current) {
+                        entry.gain.gain.setTargetAtTime(layer.volume, audioCtxRef.current.currentTime, 0.05);
+                    }
                 }
             }
         } else {
