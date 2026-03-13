@@ -373,6 +373,17 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
         // マスター
         masterBusRef.current?.setVolume(s.master.volume);
+
+        // ATMOS マスター (環境音全体)
+        if (audioCtxRef.current) {
+            for (const layer of s.soundscapeLayers) {
+                const entry = soundscapeSourcesRef.current.get(layer.id);
+                if (entry) {
+                    const effectiveVolume = layer.volume * s.master.ambientMasterVolume;
+                    entry.gain.gain.setTargetAtTime(effectiveVolume, audioCtxRef.current.currentTime, 0.05);
+                }
+            }
+        }
     }, []);
 
     // === 状態変更時にオーディオパラメータを同期 ===
@@ -501,7 +512,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         }
     }, [state.isPlaying, state.activePresetId, play, stop]);
 
-    const connectSoundscapeLayer = useCallback((layer: SoundscapeLayer) => {
+    const connectSoundscapeLayer = useCallback((layer: SoundscapeLayer, ambientVolume: number) => {
         if (!audioCtxRef.current || !fadeControllerRef.current) return;
         const ctx = audioCtxRef.current;
 
@@ -514,7 +525,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
         // 音量コントロール用ゲイン
         const masterGain = ctx.createGain();
-        masterGain.gain.value = layer.volume;
+        masterGain.gain.value = layer.volume * ambientVolume;
         masterGain.connect(fadeControllerRef.current.input);
 
         // 2つのAudio要素と関連ノードを保持する
@@ -701,18 +712,18 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
         // 再生中の場合、即座にオーディオグラフに接続
         if (audioCtxRef.current && state.isPlaying) {
-            connectSoundscapeLayer(layer);
+            connectSoundscapeLayer(layer, state.master.ambientMasterVolume);
         }
-    }, [state.isPlaying, connectSoundscapeLayer]);
+    }, [state.isPlaying, state.master.ambientMasterVolume, connectSoundscapeLayer]);
 
     // === サウンドスケープ: 指定IDでレイヤーを直接追加 ===
     const addSoundscapeLayer = useCallback((layer: SoundscapeLayer) => {
         dispatch({ type: 'ADD_SOUNDSCAPE_LAYER', payload: layer });
         // 再生中の場合、即座にオーディオグラフに接続
         if (audioCtxRef.current && state.isPlaying) {
-            connectSoundscapeLayer(layer);
+            connectSoundscapeLayer(layer, state.master.ambientMasterVolume);
         }
-    }, [state.isPlaying, connectSoundscapeLayer]);
+    }, [state.isPlaying, state.master.ambientMasterVolume, connectSoundscapeLayer]);
 
     // 再生状態変更時、サウンドスケープの再生/停止を連動
     useEffect(() => {
@@ -729,17 +740,10 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 }
             }
 
-            // 2. 新しいレイヤーを接続、既存の音量を更新
+            // 2. 新しいレイヤーを接続 (既存レイヤーの音量同期は syncAudioParams が担当)
             for (const layer of state.soundscapeLayers) {
                 if (!soundscapeSourcesRef.current.has(layer.id)) {
-                    connectSoundscapeLayer(layer);
-                } else {
-                    // 音量のみ更新（マスターボリュームを考慮）
-                    const entry = soundscapeSourcesRef.current.get(layer.id);
-                    if (entry && audioCtxRef.current) {
-                        const effectiveVolume = layer.volume * state.master.ambientMasterVolume;
-                        entry.gain.gain.setTargetAtTime(effectiveVolume, audioCtxRef.current.currentTime, 0.05);
-                    }
+                    connectSoundscapeLayer(layer, state.master.ambientMasterVolume);
                 }
             }
         } else {
@@ -747,7 +751,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 element.pause();
             }
         }
-    }, [state.isPlaying, state.soundscapeLayers, connectSoundscapeLayer]);
+    }, [state.isPlaying, state.soundscapeLayers, state.master.ambientMasterVolume, connectSoundscapeLayer]);
 
     const removeSoundscape = useCallback((id: string) => {
         const entry = soundscapeSourcesRef.current.get(id);
