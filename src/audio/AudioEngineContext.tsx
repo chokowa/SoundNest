@@ -753,7 +753,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                     entry.element.pause();
                     entry.source.disconnect();
                     entry.gain.disconnect();
-                    URL.revokeObjectURL(entry.element.src);
+                    // URL.revokeObjectURL(entry.element.src); // Scene切り替え時に解放すると再利用できなくなるため削除
                     soundscapeSourcesRef.current.delete(id);
                 }
             }
@@ -777,7 +777,15 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             entry.element.pause();
             entry.source.disconnect();
             entry.gain.disconnect();
-            URL.revokeObjectURL(entry.element.src);
+            
+            // ライブラリとして登録されている音源（カスタムファイル）の場合は、
+            // Scene切り替えやトグルでURLを破棄しない（削除時のみ破棄）。
+            // それ以外の一時的な音源のみ、ここで解放する。
+            const isLibraryFile = stateRef.current.customFiles.some(f => f.src === entry.element.src);
+            if (!isLibraryFile && entry.element.src.startsWith('blob:')) {
+                URL.revokeObjectURL(entry.element.src);
+            }
+            
             soundscapeSourcesRef.current.delete(id);
         }
         dispatch({ type: 'REMOVE_SOUNDSCAPE_LAYER', payload: id });
@@ -843,6 +851,11 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             dispatch({ type: 'ADD_CUSTOM_FILE', payload: entry });
         }, []),
         removeCustomFile: useCallback((id: string) => {
+            // ライブラリから削除する際、ObjectURLを解放してメモリリークを防ぐ
+            const fileEntry = stateRef.current.customFiles.find(f => f.id === id);
+            if (fileEntry && fileEntry.src.startsWith('blob:')) {
+                URL.revokeObjectURL(fileEntry.src);
+            }
             customFilesDb.delete(id).catch(err => console.error('DBからの削除失敗:', err));
             dispatch({ type: 'REMOVE_CUSTOM_FILE', payload: id });
         }, []),

@@ -69,9 +69,7 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
         if (soundscapeLayers.find(l => l.id === file.id)) {
             removeSoundscape(file.id);
         }
-        // Object URL を解放
-        URL.revokeObjectURL(file.src);
-        // グローバルステートから削除
+        // グローバルステートから削除（URLの破棄はContext内のremoveCustomFileで行う）
         removeCustomFile(file.id);
     }, [soundscapeLayers, removeSoundscape, removeCustomFile]);
 
