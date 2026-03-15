@@ -81,6 +81,7 @@ function audioReducer(state: AudioEngineState, action: AudioEngineAction): Audio
         case 'SET_MASTER':
             return { ...state, master: { ...state.master, ...action.payload } };
         case 'APPLY_PRESET': {
+            const isSamePreset = state.activePresetId === action.payload.id;
             return {
                 ...state,
                 blend: { ...action.payload.blend },
@@ -88,8 +89,11 @@ function audioReducer(state: AudioEngineState, action: AudioEngineAction): Audio
                 harmonicExciter: { ...action.payload.harmonicExciter },
                 activePresetId: action.payload.id,
                 activeToneId: action.payload.toneId ?? null,
-                // 環境音が保存されている場合はそれを適用、なければ空（すべて停止）にする
-                soundscapeLayers: action.payload.soundscapeLayers ?? [],
+                // 同一プリセットの再選択時は現在の環境音設定を維持する
+                // 別のプリセットに切り替える時のみ、プリセット側の環境音設定（通常は空）を適用する
+                soundscapeLayers: isSamePreset 
+                    ? state.soundscapeLayers 
+                    : (action.payload.soundscapeLayers ?? []),
                 // マスターボリュームが保存されている場合はそれを適用
                 master: action.payload.master ? { ...state.master, ...action.payload.master } : state.master,
             };
