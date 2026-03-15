@@ -78,6 +78,10 @@
         "focus-work": {
             "name": "Deep Focus",
             "desc": "Flat pink noise to block distractions."
+        },
+        "atmos-only": {
+            "name": "Atmos only",
+            "desc": "A mode for playing only ambient sounds (Atmos) without any noise."
         }
     },
     "onboarding": {

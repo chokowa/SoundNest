@@ -46,16 +46,16 @@
             "label": "静けさの雨"
         },
         "forest": {
-            "label": "森と鳥"
+            "label": "森の息吹"
         },
         "cafe": {
-            "label": "環境音カフェ"
+            "label": "カフェの空気"
         },
         "ocean": {
             "label": "穏やかな波"
         },
         "bonfire": {
-            "label": "焚き火"
+            "label": "焚き火の静寂"
         }
     },
     "presets": {
@@ -78,6 +78,10 @@
         "focus-work": {
             "name": "作業用",
             "desc": "フラットなピンクノイズで環境音をニュートラルにマスキング。"
+        },
+        "atmos-only": {
+            "name": "環境音のみ",
+            "desc": "ノイズを再生せずに環境音 (Atmos)のみを再生するためのモードです"
         }
     },
     "onboarding": {

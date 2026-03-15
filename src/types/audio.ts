@@ -97,7 +97,10 @@ export interface Preset {
     /** 仮想低音設定 */
     harmonicExciter: HarmonicExciterSettings;
     /** (オプショナル) サウンドスケープ（環境音）レイヤー */
+    /** (オプショナル) サウンドスケープ（環境音）レイヤー */
     soundscapeLayers?: SoundscapeLayer[];
+    /** (オプショナル) マスター設定 */
+    master?: MasterSettings;
     /** 組み込みプリセットか */
     builtIn: boolean;
 }
@@ -143,4 +146,5 @@ export type AudioEngineAction =
     | { type: 'REMOVE_CUSTOM_FILE'; payload: string }
     | { type: 'LOAD_CUSTOM_FILES'; payload: CustomFileEntry[] }
     | { type: 'LOAD_STATE'; payload: AudioEngineState }
-    | { type: 'SET_AMBIENT_MASTER_VOLUME'; payload: number };
+    | { type: 'SET_AMBIENT_MASTER_VOLUME'; payload: number }
+    | { type: 'CLEAR_ACTIVE_PRESET'; payload: string };

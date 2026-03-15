@@ -55,6 +55,7 @@ export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
             eq: { ...state.eq },
             harmonicExciter: { ...state.harmonicExciter },
             soundscapeLayers: state.soundscapeLayers.map(l => ({ ...l })),
+            master: { ...state.master },
             builtIn: false,
         };
         saveCustomPreset(newPreset);

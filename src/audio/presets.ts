@@ -55,6 +55,16 @@ export const BUILT_IN_PRESETS: Preset[] = [
         toneId: 'natural',
         builtIn: true,
     },
+    {
+        id: 'atmos-only',
+        name: '環境音のみ',
+        description: 'ノイズを再生せずに環境音 (Atmos)のみを再生するためのモードです',
+        blend: { brown: 0, pink: 0, white: 0, sub: 0 },
+        eq: { lowShelfGain: 0, peakGain: 0, lowpassFrequency: 2000 },
+        harmonicExciter: { enabled: false, mix: 0.0 },
+        master: { volume: 0.5, ambientMasterVolume: 1.0 },
+        builtIn: true,
+    },
 ];
 
 /** デフォルトプリセットIDを取得 */

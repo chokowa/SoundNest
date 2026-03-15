@@ -79,7 +79,7 @@ function audioReducer(state: AudioEngineState, action: AudioEngineAction): Audio
         case 'SET_FADE':
             return { ...state, fade: { ...state.fade, ...action.payload } };
         case 'SET_MASTER':
-            return { ...state, master: { ...state.master, ...action.payload }, activePresetId: null };
+            return { ...state, master: { ...state.master, ...action.payload } };
         case 'APPLY_PRESET': {
             return {
                 ...state,
@@ -90,6 +90,8 @@ function audioReducer(state: AudioEngineState, action: AudioEngineAction): Audio
                 activeToneId: action.payload.toneId ?? null,
                 // 環境音が保存されている場合はそれを適用、なければ空（すべて停止）にする
                 soundscapeLayers: action.payload.soundscapeLayers ?? [],
+                // マスターボリュームが保存されている場合はそれを適用
+                master: action.payload.master ? { ...state.master, ...action.payload.master } : state.master,
             };
         }
         case 'ADD_SOUNDSCAPE_LAYER':
@@ -128,8 +130,12 @@ function audioReducer(state: AudioEngineState, action: AudioEngineAction): Audio
             return {
                 ...state,
                 master: { ...state.master, ambientMasterVolume: action.payload },
-                activePresetId: null,
             };
+        case 'CLEAR_ACTIVE_PRESET':
+            // 指定IDが現在アクティブなプリセットの場合のみ null にリセット
+            return state.activePresetId === action.payload
+                ? { ...state, activePresetId: null }
+                : state;
         case 'LOAD_STATE':
             return { ...action.payload, customFiles: action.payload.customFiles ?? [] };
         default:
@@ -188,7 +194,14 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                     parsed.activePresetId = null;
                 }
                 // 再生状態と一時ファイルはリセット
-                return { ...parsed, isPlaying: false, soundscapeLayers: [], customFiles: [] };
+                // 起動時は常にデフォルトプリセット（足音対策（強））を選択状態にする
+                return { 
+                    ...parsed, 
+                    isPlaying: false, 
+                    soundscapeLayers: [], 
+                    customFiles: [],
+                    activePresetId: DEFAULT_PRESET_ID 
+                };
             }
         } catch {
             console.warn('保存された状態が破損していたため、初期状態にリセットしました。');
@@ -214,6 +227,8 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
     
     // isPlaying の最新値を Ref で保持（コールバック内のクロージャ問題を回避）
     const isPlayingRef = useRef<boolean>(false);
+    // state の最新値を Ref で保持（play/stop 等のコールバックでクロージャの陳腐化を防止）
+    const stateRef = useRef<AudioEngineState>(loadedState);
 
     // === 状態の永続化 ===
     useEffect(() => {
@@ -388,8 +403,9 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
     // === 状態変更時にオーディオパラメータを同期 ===
     useEffect(() => {
-        // isPlayingRef を state と同期（onstatechange コールバック用）
+        // Ref を state と同期（コールバック内のクロージャ問題を回避）
         isPlayingRef.current = state.isPlaying;
+        stateRef.current = state;
 
         if (state.isPlaying && audioCtxRef.current) {
             syncAudioParams(state);
@@ -426,24 +442,26 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             addLog('warn', `[backgroundAudio] play() 失敗: ${String(err)}`);
         });
 
-        addLog('info', `▶ 再生開始 (fade: ${state.fade.enabled ? `有効 ${state.fade.duration}s` : '無効'})`);
-        syncAudioParams(state);
+        const currentState = stateRef.current;
+        addLog('info', `▶ 再生開始 (fade: ${currentState.fade.enabled ? `有効 ${currentState.fade.duration}s` : '無効'})`);
+        syncAudioParams(currentState);
         isPlayingRef.current = true; // onstatechange が参照する Ref を即座に更新
         dispatch({ type: 'SET_PLAYING', payload: true });
         // フェード有効時はフェードイン、無効時は即再生
-        if (state.fade.enabled) {
+        if (currentState.fade.enabled) {
             await fadeControllerRef.current?.fadeIn();
         } else {
             fadeControllerRef.current?.unmute();
         }
-    }, [ensureAudioContext, syncAudioParams, state]);
+    }, [ensureAudioContext, syncAudioParams]);
 
     // === 停止 ===
     const stop = useCallback(async () => {
-        addLog('info', `⏹ 停止 (fade: ${state.fade.enabled ? `有効 ${state.fade.duration}s` : '無効'})`);
+        const currentState = stateRef.current;
+        addLog('info', `⏹ 停止 (fade: ${currentState.fade.enabled ? `有効 ${currentState.fade.duration}s` : '無効'})`);
         if (fadeControllerRef.current) {
             // フェード有効時はフェードアウト、無効時は即停止
-            if (state.fade.enabled) {
+            if (currentState.fade.enabled) {
                 await fadeControllerRef.current.fadeOut();
             } else {
                 fadeControllerRef.current.mute();
@@ -454,7 +472,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         }
         isPlayingRef.current = false; // onstatechange が参照する Ref を即座に更新
         dispatch({ type: 'SET_PLAYING', payload: false });
-    }, [state.fade.enabled]);
+    }, []);
 
     // === 各種セッター ===
     const setBlend = useCallback((blend: Partial<NoiseBlend>) => {
@@ -577,9 +595,9 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 addLog('info', `[SC: ${layer.name}] クロスフェード開始 (timeupdate)`);
             }
 
-            // イベントリスナーを全て解除（チークリーンアップ）
-            currentActive.audio.removeEventListener('timeupdate', currentActive._onTimeUpdate!);
-            currentActive.audio.removeEventListener('ended', currentActive._onEnded!);
+            // イベントリスナーを全て解除（クリーンアップ）
+            if (currentActive._onTimeUpdate) currentActive.audio.removeEventListener('timeupdate', currentActive._onTimeUpdate);
+            if (currentActive._onEnded) currentActive.audio.removeEventListener('ended', currentActive._onEnded);
 
             // 次のプレイヤーの準備と再生
             currentInactive.audio.currentTime = 0;
@@ -676,11 +694,11 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             element: {
                 pause: () => {
                     isStopped = true;
-                    // 登録済リスナーを解除
-                    playerA.audio.removeEventListener('timeupdate', playerA._onTimeUpdate!);
-                    playerA.audio.removeEventListener('ended', playerA._onEnded!);
-                    playerB.audio.removeEventListener('timeupdate', playerB._onTimeUpdate!);
-                    playerB.audio.removeEventListener('ended', playerB._onEnded!);
+                    // 登録済リスナーを解除（未登録の場合はスキップ）
+                    if (playerA._onTimeUpdate) playerA.audio.removeEventListener('timeupdate', playerA._onTimeUpdate);
+                    if (playerA._onEnded) playerA.audio.removeEventListener('ended', playerA._onEnded);
+                    if (playerB._onTimeUpdate) playerB.audio.removeEventListener('timeupdate', playerB._onTimeUpdate);
+                    if (playerB._onEnded) playerB.audio.removeEventListener('ended', playerB._onEnded);
                     playerA.audio.pause();
                     playerB.audio.pause();
                 },
@@ -768,7 +786,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
     const updateSoundscape = useCallback((id: string, updates: Partial<SoundscapeLayer>) => {
         dispatch({ type: 'UPDATE_SOUNDSCAPE_LAYER', payload: { id, ...updates } });
         // 音量変更の即時反映（マスターボリュームを考慮）
-        if (updates.volume !== undefined || updates.volume === 0) {
+        if (updates.volume !== undefined) {
             const entry = soundscapeSourcesRef.current.get(id);
             if (entry && audioCtxRef.current) {
                 const effectiveVolume = (updates.volume ?? 0) * state.master.ambientMasterVolume;
@@ -796,10 +814,10 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             return next;
         });
         // 削除したプリセットが現在アクティブだった場合は activePresetId を null にする
-        if (state.activePresetId === id) {
-            dispatch({ type: 'LOAD_STATE', payload: { ...state, activePresetId: null } });
-        }
-    }, [state]);
+        // LOAD_STATE によるstate全体の上書きはレースコンディションの原因になるため、
+        // 専用アクションで activePresetId のみを条件付きリセットする
+        dispatch({ type: 'CLEAR_ACTIVE_PRESET', payload: id });
+    }, []);
 
     const value: AudioEngineContextValue = {
         state,
