@@ -71,6 +71,9 @@
         },
         "bonfire": {
             "label": "Bonfire"
+        },
+        "thunder": {
+            "label": "Thunder"
         }
     },
     "presets": {

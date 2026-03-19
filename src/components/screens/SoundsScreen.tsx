@@ -18,6 +18,7 @@ const AMBIENT_SOUNDS = [
     { id: 'cafe', label: 'Café', sub: 'カフェ', src: getUrl('ambient/cafe.mp3'), img: getUrl('images/cafe.png'), imgPos: 'center 75%', defaultVolume: 0.4 },
     { id: 'ocean', label: 'Ocean', sub: '波音', src: getUrl('ambient/ocean.mp3'), img: getUrl('images/ocean.png'), defaultVolume: 0.35 },
     { id: 'bonfire', label: 'Bonfire', sub: '焚き火', src: getUrl('ambient/bonfire.mp3'), img: getUrl('images/bonfire.png'), defaultVolume: 0.35 },
+    { id: 'thunder', label: 'Thunder', sub: '雷鳴', src: getUrl('ambient/thunder.mp3'), img: getUrl('images/thunder.png'), defaultVolume: 0.3 },
 ];
 
 export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {

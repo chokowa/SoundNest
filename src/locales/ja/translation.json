@@ -71,6 +71,9 @@
         },
         "bonfire": {
             "label": "焚き火の静寂"
+        },
+        "thunder": {
+            "label": "遠雷の響き"
         }
     },
     "presets": {
