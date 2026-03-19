@@ -9,7 +9,7 @@ interface PlayerScreenProps {
 }
 
 // ━━ スペクトラム・ビジュアライザー・コンポーネント ━━
-function CircularSpectrum({ isPlaying }: { isPlaying: boolean }) {
+function CircularSpectrum({ isPlaying, hasTimer }: { isPlaying: boolean, hasTimer: boolean }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const { getFrequencyData, state: { blend } } = useAudioEngine();
     const bars = 60; // バーの数
@@ -22,22 +22,22 @@ function CircularSpectrum({ isPlaying }: { isPlaying: boolean }) {
         const sub   = blend?.sub ?? 0;
         const total = brown + pink + white + sub;
 
-        // すべてのノイズが0の場合はデフォルトの色
         if (total === 0) return 'rgba(128, 128, 128, 0.3)';
 
-        // 各ノイズのテーマカラーを定義
-        const cBrown = { r: 217, g: 119, b: 54 };  // オレンジ/ブラウン
-        const cPink  = { r: 230, g: 103, b: 134 }; // ピンク/マゼンタ
-        const cWhite = { r: 240, g: 245, b: 255 }; // 少し青みがかった白(発光感)
-        const cSub   = { r: 74,  g: 92,  b: 158 }; // ディープブルー/パープル
+        const cBrown = { r: 217, g: 119, b: 54 }; 
+        const cPink  = { r: 230, g: 103, b: 134 };
+        const cWhite = { r: 240, g: 245, b: 255 };
+        const cSub   = { r: 74,  g: 92,  b: 158 };
 
-        // 加重平均をとる
         const r = Math.round((brown * cBrown.r + pink * cPink.r + white * cWhite.r + sub * cSub.r) / total);
         const g = Math.round((brown * cBrown.g + pink * cPink.g + white * cWhite.g + sub * cSub.g) / total);
         const b = Math.round((brown * cBrown.b + pink * cPink.b + white * cWhite.b + sub * cSub.b) / total);
 
-        return `rgba(${r}, ${g}, ${b}, 0.7)`; // アルファ値で少し透明度を持たせる
+        return `rgba(${r}, ${g}, ${b}, 0.7)`;
     })();
+
+    // アニメーション内で補間するための現在の半径（初期値）
+    const currentRadiusRef = useRef(52);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -49,7 +49,6 @@ function CircularSpectrum({ isPlaying }: { isPlaying: boolean }) {
         const values = new Array(bars).fill(0);
 
         const render = () => {
-            // バックグラウンド等で非表示のときは処理・再描画スキップ（負荷削減）
             if (document.hidden) {
                 animationId = requestAnimationFrame(render);
                 return;
@@ -59,28 +58,42 @@ function CircularSpectrum({ isPlaying }: { isPlaying: boolean }) {
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
 
-            // 再生中かつ画面表示時のみスペクトラムデータ取得
+            // 半径の滑らかな拡張/縮小アニメーション
+            const targetRadius = 52;
+            currentRadiusRef.current += (targetRadius - currentRadiusRef.current) * 0.15;
+            const radiusX = currentRadiusRef.current;
+
             let freqData: Uint8Array | null = null;
             if (isPlaying) {
                 freqData = getFrequencyData();
             }
 
+            const halfBars = bars / 2; // 対称の折り返し地点（真上）
+
             for (let i = 0; i < bars; i++) {
-                let target = 2; // デフォルトの高さ（無音・非再生時）
+                let target = 2;
 
                 if (isPlaying && freqData && freqData.length > 0) {
-                    // データ長（通常128）の低域〜中域部分を、バーの数分に割り当てる
-                    // 高域まで全て使うと視覚的な変化が乏しいため、係数(0.6)をかけて低〜中域を使用する
-                    const dataIndex = Math.floor((i / bars) * (freqData.length * 0.6));
+                    // 左右対称（シンメトリー）のためのインデックス計算
+                    // i=0(真下)を最低音、i=30(真上)を最高音とし、右半円・左半円に同じ周波数をマッピングする
+                    let symmetricIndex = i;
+                    if (symmetricIndex > halfBars) {
+                        symmetricIndex = bars - i; // 31〜59 は逆順（折り返し）
+                    }
+
+                    // 0〜30の範囲内で高域側（全体の60%）までを配分
+                    const dataIndex = Math.floor((symmetricIndex / halfBars) * (freqData.length * 0.6));
                     const dbVal = freqData[dataIndex] || 0;
-                    // ピークの変動幅をスケールさせる（0～255の値を、基準2〜最大22程度へ）
-                    target = 2 + (dbVal / 255) * 20;
+                    
+                    // タイマー稼働中は波形（スペクトラムのピーク）もわずかに大きくする
+                    const peakScale = hasTimer ? 1.3 : 1.0;
+                    target = 2 + (dbVal / 255) * 20 * peakScale;
                 }
 
-                values[i] += (target - values[i]) * 0.2; // スムージング
+                values[i] += (target - values[i]) * 0.2;
 
-                const angle = (i / bars) * Math.PI * 2;
-                const radiusX = 55; // 内半径
+                // 描画角度: 開始点を+90度(Math.PI/2)ずらして、一番下（6時の位置）からスタートさせる
+                const angle = (i / bars) * Math.PI * 2 + Math.PI / 2;
                 const x1 = centerX + Math.cos(angle) * radiusX;
                 const y1 = centerY + Math.sin(angle) * radiusX;
                 const x2 = centerX + Math.cos(angle) * (radiusX + values[i]);
@@ -99,13 +112,13 @@ function CircularSpectrum({ isPlaying }: { isPlaying: boolean }) {
 
         render();
         return () => cancelAnimationFrame(animationId);
-    }, [isPlaying, getFrequencyData, strokeColor]);
+    }, [isPlaying, getFrequencyData, strokeColor, hasTimer]);
 
     return (
         <canvas 
             ref={canvasRef} 
-            width={180} 
-            height={180} 
+            width={200} 
+            height={200} 
             style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }} 
         />
     );
@@ -113,13 +126,44 @@ function CircularSpectrum({ isPlaying }: { isPlaying: boolean }) {
 
 export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
     const { t, i18n } = useTranslation();
-    const { state, play, stop, applyPreset, setMaster, setFade, deleteCustomPreset, presets, saveCustomPreset } = useAudioEngine();
-    const { isPlaying, master, fade, activePresetId, blend, activeToneId } = state;
+    const { state, play, stop, applyPreset, setMaster, setFade, deleteCustomPreset, presets, saveCustomPreset, setSleepTimer } = useAudioEngine();
+    const { isPlaying, master, fade, activePresetId, blend, activeToneId, sleepTimerTarget } = state;
 
     const [showSaveModal, setShowSaveModal] = useState(false);
     const [presetName, setPresetName] = useState('');
     const [showTimerModal, setShowTimerModal] = useState(false);
     const [customMinutes, setCustomMinutes] = useState('');
+    const [timeLeft, setTimeLeft] = useState<string | null>(null);
+
+    // タイマーの実カウントダウン計算（再生ボタン内表示用）
+    useEffect(() => {
+        if (!sleepTimerTarget) {
+            setTimeLeft(null);
+            return;
+        }
+
+        const tick = () => {
+            const diff = sleepTimerTarget - Date.now();
+            if (diff <= 0) {
+                setTimeLeft(null);
+            } else {
+                const totalSeconds = Math.floor(diff / 1000);
+                const hrs = Math.floor(totalSeconds / 3600);
+                const mins = Math.floor((totalSeconds % 3600) / 60);
+                const secs = totalSeconds % 60;
+                
+                if (hrs > 0) {
+                    setTimeLeft(`${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
+                } else {
+                    setTimeLeft(`${mins}:${secs.toString().padStart(2, '0')}`);
+                }
+            }
+        };
+
+        tick();
+        const interval = setInterval(tick, 500);
+        return () => clearInterval(interval);
+    }, [sleepTimerTarget]);
 
     const toggleLanguage = useCallback(() => {
         const nextLang = i18n.language.startsWith('ja') ? 'en' : 'ja';
@@ -166,9 +210,9 @@ export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-page)' }}>
 
             {/* ━━ 上部セクション ━━ */}
-            <div style={{ padding: '24px 20px 10px', flexShrink: 0, textAlign: 'center', background: 'var(--bg-card)', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+            <div style={{ padding: '16px 20px 4px', flexShrink: 0, textAlign: 'center', background: 'var(--bg-card)', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
                 {/* ヘッダー */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.5, color: 'var(--text-primary)' }}>SOUNDNEST</div>
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                         <button onClick={toggleLanguage} style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent-primary)', border: 'none', color: '#FFF', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
@@ -189,52 +233,122 @@ export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
                     {activePreset?.builtIn ? t(`presets.${activePreset.id}.name`) : (activePreset?.name ?? t('player.customMix', 'Custom Mix'))}
                 </h1>
                 <p style={{ 
-                    fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 8px',
+                    fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 0',
                     height: 36, lineHeight: '18px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'
                 }}>
                     {activePreset?.builtIn ? t(`presets.${activePreset.id}.desc`) : (activePreset?.description ?? t('player.customMixDesc', 'カスタムブレンド'))}
                 </p>
 
                 {/* ━━ 中央・左右コントロールエリア ━━ */}
-                <div style={{ position: 'relative', width: '100%', maxWidth: 320, margin: '0 auto 24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ position: 'relative', width: '100%', maxWidth: 320, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     
                     {/* 再生ボタン & スペクトラム */}
-                    <div style={{ position: 'relative', width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <CircularSpectrum isPlaying={isPlaying} />
+                    <div style={{ position: 'relative', width: 280, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <CircularSpectrum isPlaying={isPlaying} hasTimer={!!timeLeft} />
                         <button 
                             onClick={handlePlayToggle}
                             style={{
-                                width: 64, height: 64, borderRadius: '50%', background: 'var(--text-primary)', border: 'none',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', zIndex: 10
+                                width: 100, height: 100, 
+                                borderRadius: '50%', background: 'var(--text-primary)', border: 'none',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', 
+                                gap: timeLeft ? 2 : 0,
+                                cursor: 'pointer', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', zIndex: 10,
+                                transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
                             }}
+                            title="タップして再生/停止"
                         >
                             {isPlaying ? (
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--bg-card)"><rect x="5" y="4" width="4" height="16" rx="2"/><rect x="15" y="4" width="4" height="16" rx="2"/></svg>
+                                <svg width={timeLeft ? "32" : "32"} height={timeLeft ? "32" : "32"} viewBox="0 0 24 24" fill="var(--bg-card)" style={{ transition: 'all 0.4s' }}>
+                                    <rect x="5" y="4" width="4" height="16" rx="2" />
+                                    <rect x="15" y="4" width="4" height="16" rx="2" />
+                                </svg>
                             ) : (
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--bg-card)" style={{ marginLeft: 4 }}><path d="M5 3L19 12L5 21V3Z"/></svg>
+                                <svg width={timeLeft ? "32" : "32"} height={timeLeft ? "32" : "32"} viewBox="0 0 24 24" fill="var(--bg-card)" style={{ marginLeft: timeLeft ? 4 : 6, transition: 'all 0.4s' }}>
+                                    <path d="M5 3L19 12L5 21V3Z" />
+                                </svg>
+                            )}
+                            
+                            {/* タイマー表示部（数字のみ・美しさ重視） */}
+                            {timeLeft && (
+                                <div 
+                                    style={{ 
+                                        color: 'var(--bg-card)', 
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        marginTop: 8, transition: 'opacity 0.3s'
+                                    }}
+                                >
+                                    <span style={{ fontSize: 20, fontWeight: 800, fontFamily: 'monospace', letterSpacing: 1, fontVariantNumeric: 'tabular-nums' }}>
+                                        {timeLeft}
+                                    </span>
+                                </div>
                             )}
                         </button>
                     </div>
 
-                    {/* Timer Icon Button (左下) */}
-                    <div style={{ position: 'absolute', left: 16, bottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: 0.5 }}>TIMER</span>
+                    {/* Timer Icon Button (左側) */}
+                    <div style={{ position: 'absolute', left: 32, top: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: timeLeft ? 'var(--text-primary)' : 'var(--text-secondary)', letterSpacing: 0.5, transition: 'color 0.3s', whiteSpace: 'nowrap' }}>
+                            {timeLeft ? 'TIMER CANCEL' : 'TIMER'}
+                        </span>
                         <button 
-                            onClick={() => setShowTimerModal(true)}
-                            style={{ 
-                                width: 44, height: 44, borderRadius: '50%', background: 'var(--bg-card)', border: '1px solid var(--border-default)',
-                                color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s',
-                                boxShadow: '0 2px 10px rgba(0,0,0,0.04)'
+                            onClick={() => {
+                                if (timeLeft) {
+                                    setSleepTimer(null);
+                                } else {
+                                    setShowTimerModal(true);
+                                }
                             }}
-                            aria-label="Sleep Timer"
+                            style={{ 
+                                width: 44, height: 44, borderRadius: '50%', border: '1px solid var(--border-default)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.3s',
+                                boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
+                                background: timeLeft ? 'var(--text-primary)' : 'var(--bg-card)',
+                                color: timeLeft ? 'var(--bg-page)' : 'var(--text-primary)'
+                            }}
+                            aria-label={timeLeft ? "Cancel Timer" : "Sleep Timer"}
                         >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            {timeLeft ? (
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                                </svg>
+                            ) : (
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                            )}
                         </button>
                     </div>
 
-                    {/* Fade Toggle (右下) */}
-                    <div style={{ position: 'absolute', right: 16, bottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: 0.5 }}>FADE</span>
+                    {/* Fade Toggle (右側) */}
+                    <div style={{ position: 'absolute', right: 32, top: '50%', transform: 'translate(50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                        {fade.enabled ? (
+                            <button 
+                                onClick={() => {
+                                    const opts = [1, 3, 5, 10, 15];
+                                    const next = opts[(opts.indexOf(fade.duration) + 1) % opts.length];
+                                    setFade({ duration: next });
+                                }}
+                                style={{ 
+                                    display: 'flex', alignItems: 'center', gap: 4,
+                                    fontSize: 10, fontWeight: 700, color: 'var(--text-primary)', 
+                                    letterSpacing: 0.5, whiteSpace: 'nowrap',
+                                    background: 'var(--bg-muted)', border: '1px solid var(--border-default)', 
+                                    padding: '3px 8px', borderRadius: 12, cursor: 'pointer',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.05)', transition: 'all 0.2s',
+                                    marginTop: -4 // 枠のサイズでボタン本体が下に押されないように調整
+                                }}
+                                title="タップしてフェード時間を変更"
+                            >
+                                <span>FADE {fade.duration}s</span>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="6 9 12 15 18 9"/>
+                                </svg>
+                            </button>
+                        ) : (
+                            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>
+                                FADE
+                            </span>
+                        )}
                         <div style={{ height: 44, display: 'flex', alignItems: 'center' }}>
                             <button 
                                 onClick={() => setFade({ enabled: !fade.enabled })}
@@ -256,7 +370,7 @@ export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
                 </div>
 
                 {/* ボリュームスライダー */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16, maxWidth: 300, margin: '0 auto 24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, maxWidth: 300, margin: '0 auto 16px' }}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2"><path d="M11 5L6 9H2V15H6L11 19V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
                     <div style={{ flex: 1, height: 4, background: 'var(--border-default)', borderRadius: 2, position: 'relative' }}>
                         <div style={{ width: `${master.volume * 100}%`, height: '100%', background: 'var(--accent-primary)', borderRadius: 2 }} />
@@ -391,7 +505,12 @@ export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
                         <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: 1.5, marginBottom: 16 }}>QUICK SELECT</div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
                             {[5, 10, 15, 30, 45, 60, 90, 120].map(m => (
-                                <button key={m} style={{ 
+                                <button key={m} 
+                                    onClick={() => {
+                                        setSleepTimer(Date.now() + m * 60 * 1000);
+                                        setShowTimerModal(false);
+                                    }}
+                                    style={{ 
                                     padding: '14px 0', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
                                     color: '#FFF', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'background 0.2s'
                                 }}>
@@ -407,7 +526,15 @@ export function PlayerScreen({ isDark, onToggleDark }: PlayerScreenProps) {
                                 value={customMinutes} onChange={e => setCustomMinutes(e.target.value)}
                                 style={{ flex: 1, padding: '0 16px', borderRadius: 14, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#FFF', fontSize: 14, outline: 'none' }}
                             />
-                            <button style={{ padding: '0 28px', height: 48, borderRadius: 16, background: '#FFF', border: 'none', color: '#151C2B', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+                            <button 
+                                onClick={() => {
+                                    const m = parseInt(customMinutes, 10);
+                                    if (!isNaN(m) && m > 0) {
+                                        setSleepTimer(Date.now() + m * 60 * 1000);
+                                        setShowTimerModal(false);
+                                    }
+                                }}
+                                style={{ padding: '0 28px', height: 48, borderRadius: 16, background: '#FFF', border: 'none', color: '#151C2B', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
                                 Set
                             </button>
                         </div>

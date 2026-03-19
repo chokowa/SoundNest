@@ -48,6 +48,7 @@ const initialState: AudioEngineState = {
     activeToneId: defaultPreset.toneId ?? null,
     soundscapeLayers: [],
     customFiles: [],
+    sleepTimerTarget: null,
 };
 
 // ===== Reducer =====
@@ -140,8 +141,10 @@ function audioReducer(state: AudioEngineState, action: AudioEngineAction): Audio
             return state.activePresetId === action.payload
                 ? { ...state, activePresetId: null }
                 : state;
+        case 'SET_SLEEP_TIMER':
+            return { ...state, sleepTimerTarget: action.payload };
         case 'LOAD_STATE':
-            return { ...action.payload, customFiles: action.payload.customFiles ?? [] };
+            return { ...action.payload, customFiles: action.payload.customFiles ?? [], sleepTimerTarget: null };
         default:
             return state;
     }
@@ -172,6 +175,7 @@ interface AudioEngineContextValue {
     deleteCustomPreset: (id: string) => void;
     addCustomFile: (entry: CustomFileEntry) => void;
     removeCustomFile: (id: string) => void;
+    setSleepTimer: (timestamp: number | null) => void;
 }
 
 const AudioEngineCtx = createContext<AudioEngineContextValue | null>(null);
@@ -237,8 +241,8 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
     // === 状態の永続化 ===
     useEffect(() => {
-        // 再生状態と一時ファイル群は保存しない
-        const toSave = { ...state, isPlaying: false, soundscapeLayers: [], customFiles: [] };
+        // 再生状態と一時ファイル群・タイマーは保存しない
+        const toSave = { ...state, isPlaying: false, soundscapeLayers: [], customFiles: [], sleepTimerTarget: null };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     }, [state]);
 
@@ -836,6 +840,21 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'CLEAR_ACTIVE_PRESET', payload: id });
     }, []);
 
+    // === スリープタイマー監視 ===
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            const target = stateRef.current.sleepTimerTarget;
+            // timeが過ぎていたら再生停止処理を実行しタイマーをクリア
+            if (target && Date.now() >= target) {
+                if (isPlayingRef.current) {
+                    stop();
+                }
+                dispatch({ type: 'SET_SLEEP_TIMER', payload: null });
+            }
+        }, 1000);
+        return () => clearInterval(intervalId);
+    }, [stop]);
+
     const value: AudioEngineContextValue = {
         state,
         play,
@@ -857,6 +876,9 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         presets: [...BUILT_IN_PRESETS, ...customPresets],
         saveCustomPreset,
         deleteCustomPreset,
+        setSleepTimer: useCallback((timestamp: number | null) => {
+            dispatch({ type: 'SET_SLEEP_TIMER', payload: timestamp });
+        }, []),
         addCustomFile: useCallback((entry: CustomFileEntry) => {
             dispatch({ type: 'ADD_CUSTOM_FILE', payload: entry });
         }, []),
