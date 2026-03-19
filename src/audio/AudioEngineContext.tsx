@@ -166,6 +166,7 @@ interface AudioEngineContextValue {
     removeSoundscape: (id: string) => void;
     updateSoundscape: (id: string, updates: Partial<SoundscapeLayer>) => void;
     getRMSLevel: () => number;
+    getFrequencyData: () => Uint8Array;
     presets: Preset[];
     saveCustomPreset: (preset: Preset) => void;
     deleteCustomPreset: (id: string) => void;
@@ -811,6 +812,10 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         return masterBusRef.current?.getRMSLevel() ?? 0;
     }, []);
 
+    const getFrequencyData = useCallback((): Uint8Array => {
+        return masterBusRef.current?.getFrequencyData() ?? new Uint8Array(0);
+    }, []);
+
     const saveCustomPreset = useCallback((preset: Preset) => {
         setCustomPresets(prev => {
             const next = [...prev, preset];
@@ -848,6 +853,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         removeSoundscape,
         updateSoundscape,
         getRMSLevel,
+        getFrequencyData,
         presets: [...BUILT_IN_PRESETS, ...customPresets],
         saveCustomPreset,
         deleteCustomPreset,

@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAudioEngine } from '../../audio/AudioEngineContext';
 import { customFilesDb } from '../../audio/customFilesDb';
@@ -24,6 +24,25 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
     const { t, i18n } = useTranslation();
     const { state, updateSoundscape, removeSoundscape, addSoundscapeLayer, addCustomFile, removeCustomFile } = useAudioEngine();
     const { soundscapeLayers, isPlaying, customFiles = [] } = state;
+
+    const [showHint, setShowHint] = useState<boolean>(true);
+
+    useEffect(() => {
+        const stored = localStorage.getItem('hideAtmosHint');
+        if (stored === 'true') {
+            setShowHint(false);
+        }
+    }, []);
+
+    const handleCloseHint = () => {
+        setShowHint(false);
+        localStorage.setItem('hideAtmosHint', 'true');
+    };
+
+    const handleShowHint = () => {
+        setShowHint(true);
+        localStorage.setItem('hideAtmosHint', 'false');
+    };
 
     const toggleLanguage = useCallback(() => {
         const nextLang = i18n.language.startsWith('ja') ? 'en' : 'ja';
@@ -111,6 +130,16 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
                             + Noise
                         </div>
                     )}
+                    {!showHint && (
+                        <button
+                            className="nm-theme-toggle"
+                            onClick={handleShowHint}
+                            aria-label="Hint"
+                            style={{ fontSize: 14 }}
+                        >
+                            💡
+                        </button>
+                    )}
                     <button
                         className="nm-theme-toggle"
                         onClick={toggleLanguage}
@@ -134,8 +163,45 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
                 </div>
             </div>
 
+            {/* 使い方ヒント */}
+            {showHint && (
+                <div style={{
+                    background: 'var(--bg-card)',
+                    borderRadius: 'var(--radius-card)',
+                    padding: '16px',
+                    marginTop: 24,
+                    border: '1px solid var(--border-default)',
+                    position: 'relative'
+                }}>
+                    <button
+                        onClick={handleCloseHint}
+                        style={{
+                            position: 'absolute', top: 12, right: 12,
+                            width: 24, height: 24, background: 'transparent',
+                            border: 'none', color: 'var(--text-muted)',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            padding: 0
+                        }}
+                        aria-label="閉じる"
+                    >✕</button>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Inter' }}>
+                        <span style={{ fontSize: 16 }}>💡</span>
+                        {t('sounds.hintTitle', 'Hint')}
+                    </div>
+                    <ul style={{ 
+                        margin: 0, paddingLeft: 22, 
+                        fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6,
+                        display: 'flex', flexDirection: 'column', gap: 6,
+                        fontFamily: 'Inter'
+                    }}>
+                        <li>{t('sounds.hintPlay', 'To hear the ambient sounds selected here, you must press the Play button on the Player screen.')}</li>
+                        <li>{t('sounds.hintAtmosOnly', "To listen to ambient sounds only, select the 'Atmos only' Preset on the Player tab, or set all noise volumes to zero in the Mixer.")}</li>
+                    </ul>
+                </div>
+            )}
+
             {/* セクションラベル */}
-            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1.4, color: 'var(--text-muted)', padding: '20px 0 14px', flexShrink: 0, fontFamily: 'Inter' }}>
+            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1.4, color: 'var(--text-muted)', padding: '24px 0 14px', flexShrink: 0, fontFamily: 'Inter' }}>
                 {t('sounds.ambientLibrary', 'AMBIENT LIBRARY')}
             </div>
 
@@ -157,14 +223,12 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
                                 key={sound.id}
                                 style={{
                                     width: '100%',
-                                    minHeight: 110,
                                     position: 'relative',
                                     borderRadius: 'var(--radius-card)',
-                                    padding: '0 20px',
+                                    padding: '16px 20px',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     justifyContent: 'center',
-                                    gap: 12,
                                     transition: 'all var(--transition-base)',
                                     boxShadow: isActive ? 'var(--shadow-btn)' : 'none',
                                     overflow: 'hidden',
@@ -217,42 +281,43 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
                                             {isActive ? t('sounds.playing', '再生中') : t('sounds.stopped', '停止中')}
                                         </div>
                                     </div>
-
                                 </div>
 
-                                {/* 音量スライダー（常時配置で高さブレ防止、停止時は無効化） */}
-                                <div
-                                    style={{
-                                        position: 'relative',
-                                        zIndex: 2,
-                                        paddingLeft: 60,
-                                        paddingRight: 8,
-                                        opacity: isActive ? 1 : 0.3,
+                                {/* 音量スライダー（再生時のみ表示しスムーズに開閉） */}
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateRows: isActive ? '1fr' : '0fr',
+                                    transition: 'grid-template-rows var(--transition-base)',
+                                    position: 'relative', zIndex: 2,
+                                }}>
+                                    <div style={{
+                                        minHeight: 0, overflow: 'hidden',
+                                        paddingLeft: 60, paddingRight: 8,
+                                        opacity: isActive ? 1 : 0,
                                         pointerEvents: isActive ? 'auto' : 'none',
-                                        transition: 'opacity var(--transition-fast)',
-                                        height: 18,
-                                        display: 'flex',
-                                        alignItems: 'center'
-                                    }}
-                                >
-                                    <input
-                                        type="range"
-                                        min={0}
-                                        max={1}
-                                        step={0.01}
-                                        value={layer?.volume ?? 0.5}
-                                        onChange={e => isActive && updateSoundscape(sound.id, { volume: parseFloat(e.target.value) })}
-                                        style={{
-                                            WebkitAppearance: 'none',
-                                            appearance: 'none',
-                                            width: '100%',
-                                            height: 4,
-                                            borderRadius: 2,
-                                            background: `linear-gradient(to right, ${isActive ? 'rgba(255,255,255,0.9)' : 'var(--text-primary)'} ${(layer?.volume ?? 0.5) * 100}%, ${isActive ? 'rgba(255,255,255,0.25)' : 'var(--border-strong)'} ${(layer?.volume ?? 0.5) * 100}%)`,
-                                            cursor: isActive ? 'pointer' : 'default',
-                                            outline: 'none',
-                                        }}
-                                    />
+                                        transition: 'opacity var(--transition-base)',
+                                        display: 'flex', alignItems: 'center'
+                                    }}>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={1}
+                                            step={0.01}
+                                            value={layer?.volume ?? 0.5}
+                                            onChange={e => isActive && updateSoundscape(sound.id, { volume: parseFloat(e.target.value) })}
+                                            style={{
+                                                WebkitAppearance: 'none',
+                                                appearance: 'none',
+                                                width: '100%',
+                                                height: 4,
+                                                borderRadius: 2,
+                                                margin: '12px 0 4px', // スライダーが開いた時に上方向の余白を設ける
+                                                background: `linear-gradient(to right, ${isActive ? 'rgba(255,255,255,0.9)' : 'var(--text-primary)'} ${(layer?.volume ?? 0.5) * 100}%, ${isActive ? 'rgba(255,255,255,0.25)' : 'var(--border-strong)'} ${(layer?.volume ?? 0.5) * 100}%)`,
+                                                cursor: isActive ? 'pointer' : 'default',
+                                                outline: 'none',
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         );
@@ -268,17 +333,16 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
                                 key={file.id}
                                 style={{
                                     width: '100%',
-                                    minHeight: 110,
                                     background: isActive ? 'var(--accent-primary)' : 'var(--bg-card)',
                                     borderRadius: 'var(--radius-card)',
                                     border: isActive ? 'none' : '1px solid var(--border-default)',
-                                    padding: '0 20px',
+                                    padding: '16px 20px',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     justifyContent: 'center',
-                                    gap: 12,
                                     transition: 'all var(--transition-base)',
                                     boxShadow: isActive ? 'var(--shadow-btn)' : 'none',
+                                    overflow: 'hidden',
                                 }}
                             >
                                 {/* タイトル行 */}
@@ -326,29 +390,35 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
                                     >✕</span>
                                 </div>
 
-                                {/* 音量スライダー（常時配置、停止時は無効化） */}
-                                <div
-                                    style={{
+                                {/* 音量スライダー（再生時のみ表示しスムーズに開閉） */}
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateRows: isActive ? '1fr' : '0fr',
+                                    transition: 'grid-template-rows var(--transition-base)',
+                                }}>
+                                    <div style={{
+                                        minHeight: 0, overflow: 'hidden',
                                         paddingLeft: 60, paddingRight: 8,
-                                        opacity: isActive ? 1 : 0.3,
+                                        opacity: isActive ? 1 : 0,
                                         pointerEvents: isActive ? 'auto' : 'none',
-                                        transition: 'opacity var(--transition-fast)',
-                                        height: 18, display: 'flex', alignItems: 'center',
-                                    }}
-                                >
-                                    <input
-                                        type="range"
-                                        min={0} max={1} step={0.01}
-                                        value={layer?.volume ?? 0.3}
-                                        onChange={e => isActive && updateSoundscape(file.id, { volume: parseFloat(e.target.value) })}
-                                        style={{
-                                            WebkitAppearance: 'none', appearance: 'none',
-                                            width: '100%', height: 4, borderRadius: 2,
-                                            background: `linear-gradient(to right, ${isActive ? 'rgba(255,255,255,0.9)' : 'var(--text-primary)'} ${(layer?.volume ?? 0.3) * 100}%, ${isActive ? 'rgba(255,255,255,0.25)' : 'var(--border-strong)'} ${(layer?.volume ?? 0.3) * 100}%)`,
-                                            cursor: isActive ? 'pointer' : 'default',
-                                            outline: 'none',
-                                        }}
-                                    />
+                                        transition: 'opacity var(--transition-base)',
+                                        display: 'flex', alignItems: 'center'
+                                    }}>
+                                        <input
+                                            type="range"
+                                            min={0} max={1} step={0.01}
+                                            value={layer?.volume ?? 0.3}
+                                            onChange={e => isActive && updateSoundscape(file.id, { volume: parseFloat(e.target.value) })}
+                                            style={{
+                                                WebkitAppearance: 'none', appearance: 'none',
+                                                width: '100%', height: 4, borderRadius: 2,
+                                                margin: '12px 0 4px',
+                                                background: `linear-gradient(to right, ${isActive ? 'rgba(255,255,255,0.9)' : 'var(--text-primary)'} ${(layer?.volume ?? 0.3) * 100}%, ${isActive ? 'rgba(255,255,255,0.25)' : 'var(--border-strong)'} ${(layer?.volume ?? 0.3) * 100}%)`,
+                                                cursor: isActive ? 'pointer' : 'default',
+                                                outline: 'none',
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         );

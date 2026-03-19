@@ -11,10 +11,10 @@ interface MixerScreenProps {
 
 // ノイズチャンネル定義
 const NOISE_CHANNELS = [
-    { key: 'brown' as const, label: 'Brown Noise', sub: 'Low Freq', cssVar: '--noise-brown' },
-    { key: 'pink' as const, label: 'Pink Noise', sub: 'Mid Freq', cssVar: '--noise-pink' },
-    { key: 'white' as const, label: 'White Noise', sub: 'High Freq', cssVar: '--noise-white' },
-    { key: 'sub' as const, label: 'Sub Bass', sub: 'Bass Boost', cssVar: '--noise-sub' },
+    { key: 'brown' as const, label: 'Brown Noise', desc: '深い低域・集中や睡眠', cssVar: '--noise-brown' },
+    { key: 'pink' as const, label: 'Pink Noise', desc: '自然な響き・リラックス', cssVar: '--noise-pink' },
+    { key: 'white' as const, label: 'White Noise', desc: '全帯域・強力なマスキング', cssVar: '--noise-white' },
+    { key: 'sub' as const, label: 'Sub Bass', desc: '響く重低音・足音対策', cssVar: '--noise-sub' },
 ];
 
 export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
@@ -104,6 +104,7 @@ export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
                             onChange={v => setBlend({ [ch.key]: v })}
                             color={`var(${ch.cssVar})`}
                             label={ch.label}
+                            description={ch.desc}
                         />
                     ))}
                 </div>
@@ -149,10 +150,23 @@ export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
                                         cursor: 'pointer',
                                     }}
                                 >
-                                    {toneInfo.name}
+                                    {t(`mixer.tones.${tId}`, toneInfo.name)}
                                 </button>
                             );
                         })}
+                    </div>
+                    {/* TONEの説明文 */}
+                    <div style={{
+                        fontSize: 12,
+                        color: 'var(--text-secondary)',
+                        fontFamily: 'Inter',
+                        textAlign: 'center',
+                        marginTop: 4,
+                        minHeight: 18,
+                        transition: 'opacity 0.2s',
+                        opacity: activeToneId ? 1 : 0
+                    }}>
+                        {activeToneId && t(`mixer.tonedesc.${activeToneId}`)}
                     </div>
                 </div>
             </div>
@@ -165,7 +179,7 @@ export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
                 <HorizontalSlider
                     value={master.ambientMasterVolume}
                     onChange={setAmbientMasterVolume}
-                    color="var(--accent-primary)"
+                    color="var(--accent-green)"
                     label="" // ヘッダーと重複するためラベルは空にする
                     icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>}
                 />

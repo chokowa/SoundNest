@@ -27,15 +27,15 @@
   /* アクセント */
   --accent-primary: #1E3A5F;
   --accent-primary-soft: rgba(30, 58, 95, 0.08);
-  --accent-green: #3D6B4F;
+  --accent-green: #2E7D32;
   --accent-purple: #8B6B8B;
   --accent-red: #8B4049;
 
-  /* ノイズチャンネルカラー */
-  --noise-brown: #8B6B4A;
-  --noise-pink: #C46B8A;
-  --noise-white: #8A8A8A;
-  --noise-sub: #1E3A5F;
+  /* ノイズチャンネルカラー（鮮やか・高コントラスト） */
+  --noise-brown: #D35400; /* パンチのあるキャラメルブラウン */
+  --noise-pink: #E91E63;  /* 鮮烈なホットピンク */
+  --noise-white: #7F8C8D; /* ソリッドなスレートグレー */
+  --noise-sub: #0D47A1;   /* 深く力強いブルー */
 
   /* シャドウ */
   --shadow-card: 0 2px 12px rgba(28, 28, 28, 0.06);
@@ -70,14 +70,15 @@
 
   --accent-primary: #5B8FBF;
   --accent-primary-soft: rgba(91, 143, 191, 0.12);
-  --accent-green: #5A9E72;
+  --accent-green: #4CAF50;
   --accent-purple: #A88BAA;
   --accent-red: #AA7B80;
 
-  --noise-brown: #B08D6A;
-  --noise-pink: #D48BA5;
-  --noise-white: #B0B0B0;
-  --noise-sub: #5B8FBF;
+  /* ノイズチャンネルカラー（ダークモード用 ネオン調・高コントラスト） */
+  --noise-brown: #F39C12; /* 光るようなヴィヴィッドオレンジブラウン */
+  --noise-pink: #FF4081;  /* 明るいネオンピンク */
+  --noise-white: #BDC3C7; /* クリスプなメタリックシルバー */
+  --noise-sub: #2196F3;   /* 鮮やかなスカイブルー */
 
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.30);
   --shadow-btn: 0 8px 24px rgba(91, 143, 191, 0.25);

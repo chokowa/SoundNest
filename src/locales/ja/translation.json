@@ -25,6 +25,18 @@
         "noiseMixHeader": "NOISE MIX",
         "atmosMasterHeader": "ATMOS MASTER",
         "toneHeader": "TONE (EQ & HARMONICS)",
+        "tones": {
+            "deep": "重低音",
+            "muffled": "マイルド",
+            "clear": "クリア",
+            "natural": "ナチュラル"
+        },
+        "tonedesc": {
+            "deep": "低域を強調し、重厚で響くサウンドにします。",
+            "muffled": "高域を抑え、長時間でも耳に優しい音にします。",
+            "clear": "低域の濁りを取り、スッキリとした音にします。",
+            "natural": "音響処理を無効化し、本来の音色で再生します。"
+        },
         "yourCustomMix": "Your custom mix",
         "saveAsPreset": "Save as Preset",
         "savePresetTitle": "Save Preset",
@@ -42,6 +54,9 @@
         "tapToPlay": "タップで再生",
         "customSound": "カスタム",
         "addOwnAudio": "自分の音源を追加（MP3 / WAV）",
+        "hintTitle": "ヒント",
+        "hintPlay": "ここで選んだ環境音を鳴らすには、Player画面で再生ボタンを押す必要があります。",
+        "hintAtmosOnly": "環境音のみを聴きたい場合は、PlayerタブのPresetで「環境音のみ」を選ぶか、Mixerでノイズの音量をすべてゼロにしてください。",
         "rain": {
             "label": "静けさの雨"
         },

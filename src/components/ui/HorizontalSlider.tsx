@@ -5,11 +5,11 @@ interface HorizontalSliderProps {
     onChange: (v: number) => void;
     color: string;
     label: string;
+    description?: string;
     icon?: React.ReactNode;
-    showValue?: boolean;
 }
 
-export function HorizontalSlider({ value, onChange, color, label, icon, showValue = true }: HorizontalSliderProps) {
+export function HorizontalSlider({ value, onChange, color, label, description, icon }: HorizontalSliderProps) {
     const trackRef = useRef<HTMLDivElement>(null);
 
     const getValueFromX = useCallback((clientX: number): number => {
@@ -39,7 +39,7 @@ export function HorizontalSlider({ value, onChange, color, label, icon, showValu
                     {icon && <div style={{ color: color }}>{icon}</div>}
                     <div style={{
                         fontSize: 13,
-                        fontWeight: 500,
+                        fontWeight: 600,
                         color: 'var(--text-primary)',
                         fontFamily: 'Inter',
                         letterSpacing: 0.2,
@@ -47,15 +47,15 @@ export function HorizontalSlider({ value, onChange, color, label, icon, showValu
                         {label}
                     </div>
                 </div>
-                {showValue && (
+                {description && (
                     <div style={{
-                        fontSize: 12,
-                        fontWeight: 600,
+                        fontSize: 10,
+                        fontWeight: 500,
                         color: 'var(--text-secondary)',
                         fontFamily: 'Inter',
-                        fontVariantNumeric: 'tabular-nums',
+                        textAlign: 'right',
                     }}>
-                        {Math.round(value * 100)}%
+                        {description}
                     </div>
                 )}
             </div>
@@ -99,16 +99,23 @@ export function HorizontalSlider({ value, onChange, color, label, icon, showValu
                 {/* つまみ */}
                 <div style={{
                     position: 'absolute',
-                    left: `calc(${fillPercent}% - 14px)`,
-                    width: 28,
-                    height: 28,
+                    left: `calc(${fillPercent}% - 16px)`,
+                    width: 32,
+                    height: 32,
                     borderRadius: '50%',
-                    background: 'var(--bg-card)',
-                    border: `2px solid ${color}`,
-                    boxShadow: `0 2px 8px ${color}30`,
+                    background: color,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#FFFFFF',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    boxShadow: `0 2px 10px ${color}50`,
                     zIndex: 1,
                     transition: 'left 0.15s cubic-bezier(0.25, 0.1, 0.25, 1)',
-                }} />
+                }}>
+                    {Math.round(value * 100)}
+                </div>
             </div>
         </div>
     );
