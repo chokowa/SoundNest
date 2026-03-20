@@ -135,19 +135,13 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
                             fontSize: 12,
                             color: 'var(--text-secondary)',
                             fontFamily: 'Inter',
+                            maxWidth: 'clamp(100px, 30vw, 200px)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                         }}>
                             {activePreset.builtIn ? t(`presets.${activePreset.id}.name`) : activePreset.name}
                         </div>
-                    )}
-                    {!showHint && (
-                        <button
-                            className="nm-theme-toggle"
-                            onClick={handleShowHint}
-                            aria-label="Hint"
-                            style={{ fontSize: 14 }}
-                        >
-                            💡
-                        </button>
                     )}
                     <button
                         className="nm-theme-toggle"
@@ -210,8 +204,33 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
             )}
 
             {/* セクションラベル */}
-            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1.4, color: 'var(--text-muted)', padding: '24px 0 14px', flexShrink: 0, fontFamily: 'Inter' }}>
-                {t('sounds.ambientLibrary', 'AMBIENT LIBRARY')}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 0 14px', flexShrink: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1.4, color: 'var(--text-muted)', fontFamily: 'Inter' }}>
+                    {t('sounds.ambientLibrary', 'AMBIENT LIBRARY')}
+                </div>
+                {!showHint && (
+                    <button
+                        onClick={handleShowHint}
+                        style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: 'var(--text-muted)',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '4px 8px',
+                            borderRadius: 8,
+                            fontFamily: 'Inter',
+                            transition: 'color 0.2s',
+                        }}
+                    >
+                        <span style={{ fontSize: 14 }}>💡</span>
+                        {t('sounds.showHint', '使い方')}
+                    </button>
+                )}
             </div>
 
             {/* 環境音リスト */}

@@ -12,32 +12,27 @@ interface PlayerScreenProps {
 function CircularSpectrum({ isPlaying, hasTimer }: { isPlaying: boolean, hasTimer: boolean }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const { getFrequencyData, state: { blend } } = useAudioEngine();
-    const bars = 60; // バーの数
+    const bars = 64; // バーの数
+    const renderValues = useRef(new Float32Array(bars).fill(2));
 
-    // ノイズバランスからブレンドカラーを計算（加算混色）
-    const strokeColor = (() => {
+    // 洗練されたブレンドカラーの計算（1色に統合）
+    const baseColor = (() => {
         const brown = blend?.brown ?? 0;
         const pink  = blend?.pink ?? 0;
         const white = blend?.white ?? 0;
         const sub   = blend?.sub ?? 0;
-        const total = brown + pink + white + sub;
+        const total = brown + pink + white + sub || 1;
 
-        if (total === 0) return 'rgba(128, 128, 128, 0.3)';
+        // 各ノイズの色彩を調和させた1つのカラー
+        const r = (brown * 188 + pink * 255 + white * 202 + sub * 58) / total;
+        const g = (brown * 108 + pink * 0   + white * 240 + sub * 134) / total;
+        const b = (brown * 37  + pink * 110 + white * 248 + sub * 255) / total;
 
-        const cBrown = { r: 217, g: 119, b: 54 }; 
-        const cPink  = { r: 230, g: 103, b: 134 };
-        const cWhite = { r: 240, g: 245, b: 255 };
-        const cSub   = { r: 74,  g: 92,  b: 158 };
-
-        const r = Math.round((brown * cBrown.r + pink * cPink.r + white * cWhite.r + sub * cSub.r) / total);
-        const g = Math.round((brown * cBrown.g + pink * cPink.g + white * cWhite.g + sub * cSub.g) / total);
-        const b = Math.round((brown * cBrown.b + pink * cPink.b + white * cWhite.b + sub * cSub.b) / total);
-
-        return `rgba(${r}, ${g}, ${b}, 0.7)`;
+        return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
     })();
 
-    // アニメーション内で補間するための現在の半径（初期値）
-    const currentRadiusRef = useRef(52);
+    // アニメーション内で補間するための現在の半径
+    const currentRadiusRef = useRef(54);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -46,7 +41,6 @@ function CircularSpectrum({ isPlaying, hasTimer }: { isPlaying: boolean, hasTime
         if (!ctx) return;
 
         let animationId: number;
-        const values = new Array(bars).fill(0);
 
         const render = () => {
             if (document.hidden) {
@@ -59,7 +53,7 @@ function CircularSpectrum({ isPlaying, hasTimer }: { isPlaying: boolean, hasTime
             const centerY = canvas.height / 2;
 
             // 半径の滑らかな拡張/縮小アニメーション
-            const targetRadius = 52;
+            const targetRadius = 54;
             currentRadiusRef.current += (targetRadius - currentRadiusRef.current) * 0.15;
             const radiusX = currentRadiusRef.current;
 
@@ -68,43 +62,63 @@ function CircularSpectrum({ isPlaying, hasTimer }: { isPlaying: boolean, hasTime
                 freqData = getFrequencyData();
             }
 
-            const halfBars = bars / 2; // 対称の折り返し地点（真上）
-
             for (let i = 0; i < bars; i++) {
-                let target = 2;
+                // ━━━━ モノクロマティック・プロファイル ━━━━
+                const normalizedIdx = i / bars;
+                const freqFactor = Math.pow(normalizedIdx, 2.2);
+                let targetHeight = 2;
 
                 if (isPlaying && freqData && freqData.length > 0) {
-                    // 左右対称（シンメトリー）のためのインデックス計算
-                    // i=0(真下)を最低音、i=30(真上)を最高音とし、右半円・左半円に同じ周波数をマッピングする
-                    let symmetricIndex = i;
-                    if (symmetricIndex > halfBars) {
-                        symmetricIndex = bars - i; // 31〜59 は逆順（折り返し）
-                    }
-
-                    // 0〜30の範囲内で高域側（全体の60%）までを配分
-                    const dataIndex = Math.floor((symmetricIndex / halfBars) * (freqData.length * 0.6));
-                    const dbVal = freqData[dataIndex] || 0;
+                    // 周波数データの取得（より広い範囲で平均化して高低差を滑らかに）
+                    const dataIndex = Math.floor(freqFactor * (freqData.length * 0.5));
                     
-                    // タイマー稼働中は波形（スペクトラムのピーク）もわずかに大きくする
+                    let sum = 0;
+                    const sampleSize = 4; // 周辺4つを平均化
+                    for (let s = 0; s < sampleSize; s++) {
+                        sum += freqData[dataIndex + s] || 0;
+                    }
+                    const dbVal = sum / sampleSize;
+                    
                     const peakScale = hasTimer ? 1.3 : 1.0;
-                    target = 2 + (dbVal / 255) * 20 * peakScale;
+
+                    // ━━━━振幅圧縮（Compression）の強化━━━━
+                    // 最大長を抑え（32 * peakScale）、かつ「音量が上がっても伸びにくい」0.33乗に強化
+                    const compressedVal = Math.pow(dbVal / 255, 0.33);
+                    targetHeight = 4 + compressedVal * 32 * peakScale;
                 }
 
-                values[i] += (target - values[i]) * 0.2;
+                // スムージング（高級感のある挙動）
+                renderValues.current[i] += (targetHeight - renderValues.current[i]) * 0.22;
+                const height = renderValues.current[i];
 
-                // 描画角度: 開始点を+90度(Math.PI/2)ずらして、一番下（6時の位置）からスタートさせる
-                const angle = (i / bars) * Math.PI * 2 + Math.PI / 2;
+                const angle = normalizedIdx * Math.PI * 2 + Math.PI / 2;
                 const x1 = centerX + Math.cos(angle) * radiusX;
                 const y1 = centerY + Math.sin(angle) * radiusX;
-                const x2 = centerX + Math.cos(angle) * (radiusX + values[i]);
-                const y2 = centerY + Math.sin(angle) * (radiusX + values[i]);
+                const x2 = centerX + Math.cos(angle) * (radiusX + height);
+                const y2 = centerY + Math.sin(angle) * (radiusX + height);
+
+                // ━━━━ 質感的アイデンティティ (Texture ID) ━━━━
+                // 低域（Brown/Sub）は太く柔らかく、高域（White/Pink）は細く鋭く
+                const lineWidth = 3.6 - normalizedIdx * 2.4; 
+                const alpha = 0.5 + normalizedIdx * 0.5; // 高域ほどくっきりした光に
 
                 ctx.beginPath();
                 ctx.moveTo(x1, y1);
                 ctx.lineTo(x2, y2);
-                ctx.strokeStyle = strokeColor;
-                ctx.lineWidth = 2;
+                
+                // カラーの階調制御
+                ctx.strokeStyle = baseColor.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
+                ctx.lineWidth = lineWidth;
                 ctx.lineCap = 'round';
+                
+                // 低域側には微かなグロー（ぼかし）を加えて柔らかさを演出
+                if (normalizedIdx < 0.35) {
+                    ctx.shadowBlur = 4 * (1 - normalizedIdx / 0.35);
+                    ctx.shadowColor = baseColor;
+                } else {
+                    ctx.shadowBlur = 0;
+                }
+
                 ctx.stroke();
             }
             animationId = requestAnimationFrame(render);
@@ -112,13 +126,13 @@ function CircularSpectrum({ isPlaying, hasTimer }: { isPlaying: boolean, hasTime
 
         render();
         return () => cancelAnimationFrame(animationId);
-    }, [isPlaying, getFrequencyData, strokeColor, hasTimer]);
+    }, [isPlaying, getFrequencyData, blend, baseColor, hasTimer]);
 
     return (
         <canvas 
             ref={canvasRef} 
-            width={200} 
-            height={200} 
+            width={280} 
+            height={280} 
             style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }} 
         />
     );

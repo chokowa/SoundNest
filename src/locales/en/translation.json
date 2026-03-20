@@ -68,6 +68,7 @@
         "hintTitle": "Hint",
         "hintPlay": "To hear the ambient sounds selected here, you must press the Play button on the Player screen.",
         "hintAtmosOnly": "To listen to ambient sounds only, select the 'Atmos only' Preset on the Player tab, or set all noise volumes to zero in the Mixer.",
+        "showHint": "Show Hint",
         "rain": { "label": "Rain" },
         "forest": { "label": "Forest" },
         "cafe": { "label": "Cafe" },

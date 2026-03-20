@@ -68,6 +68,7 @@
         "hintTitle": "ヒント",
         "hintPlay": "ここで選んだ環境音を鳴らすには、Player画面で再生ボタンを押す必要があります。",
         "hintAtmosOnly": "環境音のみを聴きたい場合は、PlayerタブのPresetで「環境音のみ」を選ぶか、Mixerでノイズの音量をすべてゼロにしてください。",
+        "showHint": "使い方",
         "rain": { "label": "静けさの雨" },
         "forest": { "label": "森の息吹" },
         "cafe": { "label": "カフェの空気" },
