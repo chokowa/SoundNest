@@ -98,22 +98,36 @@ export class ReverbProcessor {
         const length = sampleRate * duration;
         const buffer = this.ctx.createBuffer(2, length, sampleRate);
         
+        let lastL = 0;
+        let lastR = 0;
+
         for (let channel = 0; channel < 2; channel++) {
             const data = buffer.getChannelData(channel);
             for (let i = 0; i < length; i++) {
-                // 1. ベースとなるノイズ
+                // 1. ベースとなるノイズ (ステレオ独立)
                 let noise = (Math.random() * 2 - 1);
                 
                 // 2. 指数関数的な減衰
                 let decay = Math.pow(1 - i / length, decayRate);
                 
-                // 3. 初期反射の密度を上げるための櫛形フィルタ的なニュアンス
-                // (単純化のため、ランダムなバーストを加える)
-                if (i < sampleRate * 0.05) { // 最初の50ms
-                    noise += (Math.random() * 2 - 1) * 0.5;
+                // 3. サウンドマスキング由来のエッセンス: シンプルなローパス（平滑化）による「温かみ」
+                // y[i] = x[i] * 0.3 + y[i-1] * 0.7 
+                // 比率を0.7に上げることで、よりしっとりとした質感にする
+                if (channel === 0) {
+                    noise = noise * 0.3 + lastL * 0.7;
+                    lastL = noise;
+                } else {
+                    noise = noise * 0.3 + lastR * 0.7;
+                    lastR = noise;
                 }
 
-                data[i] = noise * decay;
+                // 4. 初期反射の密度をさらに上げる (50ms付近までのエネルギーを強化)
+                if (i < sampleRate * 0.05) {
+                    const earlyBoost = (Math.random() * 2 - 1) * 0.3 * (1 - i / (sampleRate * 0.05));
+                    noise += earlyBoost;
+                }
+
+                data[i] = noise * decay * 1.5; // 音量低下を補正
             }
         }
         return buffer;
