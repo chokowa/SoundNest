@@ -457,17 +457,8 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         // iOS/Android 両対応: crossOrigin は data:URI に設定しない（CORSエラー回避）
         if (!backgroundAudioRef.current) {
             const audio = new Audio();
-            // iOS Safari は OGG 非対応のため、WAV を優先し OGG をフォールバックとして使用する
-            // canPlayType で対応フォーマットを動的に判定する
-            const canPlayWav = audio.canPlayType('audio/wav') !== '';
-            if (canPlayWav) {
-                // 無音WAV (44バイト): iOS/Androidの両方で動作
-                audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-            } else {
-                // フォールバック: OGG（Android Chrome 等）
-                // eslint-disable-next-line max-len
-                audio.src = 'data:audio/ogg;base64,T2dnUwACAAAAAAAAAADqnjMlAAAAAOyyzAEBHgF2b3JiaXMAAAAAAUAfAABAHwAAQB8AAIAJAARB//////////8JTGAVGAAAAAAQBmNvbW1lbnQAAABgeGlwaC5vcmcAAAAAAAAAAAAAAAAAAAAA';
-            }
+            // データURIではなく、物理的な無音ファイルを指定することで、Androidのメディアセッション認識を安定させる
+            audio.src = `${import.meta.env.BASE_URL}silence.wav`;
             audio.loop = true;
             audio.volume = 0.01; // Android Chrome 等でメディアセッションを維持するのに必要な最低限の音量
             backgroundAudioRef.current = audio;
@@ -567,8 +558,8 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 artist: 'SoundNest',
                 album: 'サウンドマスキング',
                 artwork: [
-                    { src: '/SoundNest/icon-192.png', sizes: '192x192', type: 'image/png' },
-                    { src: '/SoundNest/icon-512.png', sizes: '512x512', type: 'image/png' }
+                    { src: `${window.location.origin}${import.meta.env.BASE_URL}icon-192.png`, sizes: '192x192', type: 'image/png' },
+                    { src: `${window.location.origin}${import.meta.env.BASE_URL}icon-512.png`, sizes: '512x512', type: 'image/png' }
                 ]
             });
 
