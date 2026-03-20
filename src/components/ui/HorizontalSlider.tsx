@@ -113,7 +113,7 @@ export function HorizontalSlider({ value, onChange, color, label, description, i
                     boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
                     zIndex: 1,
                 }}>
-                    {Math.round(value * 100)}
+                    {Math.round((value / max) * 100)}
                 </div>
             </div>
         </div>
