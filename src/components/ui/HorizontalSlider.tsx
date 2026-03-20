@@ -1,15 +1,16 @@
 import { useRef, useCallback } from 'react';
 
 interface HorizontalSliderProps {
-    value: number;           // 0.0 ~ 1.0
+    value: number;           // 0.0 ~ max
     onChange: (v: number) => void;
     color: string;
     label: string;
     description?: string;
     icon?: React.ReactNode;
+    max?: number;            // デフォルト 1.0
 }
 
-export function HorizontalSlider({ value, onChange, color, label, description, icon }: HorizontalSliderProps) {
+export function HorizontalSlider({ value, onChange, color, label, description, icon, max = 1.0 }: HorizontalSliderProps) {
     const trackRef = useRef<HTMLDivElement>(null);
 
     const getValueFromX = useCallback((clientX: number): number => {
@@ -17,8 +18,8 @@ export function HorizontalSlider({ value, onChange, color, label, description, i
         if (!track) return value;
         const rect = track.getBoundingClientRect();
         const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-        return ratio;
-    }, [value]);
+        return ratio * max;
+    }, [value, max]);
 
     const handlePointerDown = useCallback((e: React.PointerEvent) => {
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -30,7 +31,7 @@ export function HorizontalSlider({ value, onChange, color, label, description, i
         onChange(getValueFromX(e.clientX));
     }, [onChange, getValueFromX]);
 
-    const fillPercent = value * 100;
+    const fillPercent = (value / max) * 100;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
