@@ -240,6 +240,8 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
     // === バックグラウンド再生維持用・KeepAlive用 ===
     const backgroundAudioRef = useRef<HTMLAudioElement | null>(null);
+    const backgroundSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+    const backgroundGainRef = useRef<GainNode | null>(null);
     const keepAliveNodeRef = useRef<AudioWorkletNode | null>(null);
     
     // isPlaying の最新値を Ref で保持（コールバック内のクロージャ問題を回避）
@@ -464,6 +466,20 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             audio.loop = true;
             audio.volume = 0.01; // Keep this just above zero so Android continues treating it as active media.
             backgroundAudioRef.current = audio;
+
+            // AudioContext への接続 (Atomsと同様の経路を通す)
+            const source = ctx.createMediaElementSource(audio);
+            const gain = ctx.createGain();
+            gain.gain.value = 1.0; // audio.volume で既に 0.01 になっているので、ここでは 1.0 でよい
+
+            if (reverbProcessorRef.current) {
+                gain.connect(reverbProcessorRef.current.input);
+            } else if (fadeControllerRef.current) {
+                gain.connect(fadeControllerRef.current.input);
+            }
+            
+            backgroundSourceRef.current = source;
+            backgroundGainRef.current = gain;
         }
         try {
             await backgroundAudioRef.current.play();
