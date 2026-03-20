@@ -113,7 +113,7 @@ function AppShell() {
               { 
                 id: 'sounds', 
                 label: t('app.tabAtmos', 'Atmos'), 
-                icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.5 19c2.4 0 4.5-1.9 4.5-4.2S19.9 10.5 17.5 10.5c-.3 0-.6.1-.9.1-1-3.6-4.5-6.1-8.6-6.1-5 0-9 4-9 9s4 9 9 9h8.5Z"/></svg>
+                icon: <svg width="18" height="18" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.5 19c2.4 0 4.5-1.9 4.5-4.2S19.9 10.5 17.5 10.5c-.3 0-.6.1-.9.1-1-3.6-4.5-6.1-8.6-6.1-5 0-9 4-9 9s4 9 9 9h8.5Z"/></svg>
               },
             ].map((tab) => {
               const isActive = activeTab === tab.id;
