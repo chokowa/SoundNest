@@ -31,6 +31,7 @@ import { BUILT_IN_PRESETS, DEFAULT_PRESET_ID, findPresetById, loadCustomPresets,
 import { addLog } from './AudioLogger';
 import { useState } from 'react';
 import { customFilesDb } from './customFilesDb';
+import { startAudioForegroundService, stopAudioForegroundService } from '../native/audioForeground';
 
 // ===== localStorage キー =====
 const STORAGE_KEY = 'soundnest-state';
@@ -473,6 +474,12 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         backgroundAudioRef.current.play().catch((err) => {
             addLog('warn', `[backgroundAudio] play() 失敗: ${String(err)}`);
         });
+        try {
+            await startAudioForegroundService('SoundNest', 'Background playback is active');
+            addLog('info', '[ForegroundService] started');
+        } catch (err) {
+            addLog('warn', '[ForegroundService] start failed');
+        }
 
         const currentState = stateRef.current;
         addLog('info', `▶ 再生開始 (fade: ${currentState.fade.enabled ? `有効 ${currentState.fade.duration}s` : '無効'})`);
@@ -501,6 +508,12 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         }
         if (backgroundAudioRef.current) {
             backgroundAudioRef.current.pause();
+        }
+        try {
+            await stopAudioForegroundService();
+            addLog('info', '[ForegroundService] stopped');
+        } catch (err) {
+            addLog('warn', '[ForegroundService] stop failed');
         }
         isPlayingRef.current = false; // onstatechange が参照する Ref を即座に更新
         dispatch({ type: 'SET_PLAYING', payload: false });
