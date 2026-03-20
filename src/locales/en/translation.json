@@ -55,6 +55,34 @@
         "saveButton": "Save Preset",
         "cancelButton": "Cancel"
     },
+    "sounds": {
+        "toggleLanguage": "Toggle Language",
+        "toggleTheme": "Toggle Theme",
+        "ambientLibrary": "ATMOS LIBRARY",
+        "statusPlaying": "Playing",
+        "statusStopped": "Stopped",
+        "playing": "Playing",
+        "tapToPlay": "Tap to play",
+        "customSound": "Custom",
+        "addOwnAudio": "Add your own audio (MP3 / WAV)",
+        "hintTitle": "Hint",
+        "hintPlay": "To hear the ambient sounds selected here, you must press the Play button on the Player screen.",
+        "hintAtmosOnly": "To listen to ambient sounds only, select the 'Atmos only' Preset on the Player tab, or set all noise volumes to zero in the Mixer.",
+        "rain": { "label": "Rain" },
+        "forest": { "label": "Forest" },
+        "cafe": { "label": "Cafe" },
+        "ocean": { "label": "Ocean" },
+        "bonfire": { "label": "Bonfire" },
+        "thunder": { "label": "Thunder" }
+    },
+    "presets": {
+        "footstep-strong": { "name": "Heavy Shield", "desc": "Strong low-freq masking for heavy footsteps." },
+        "footstep-mild": { "name": "Mild Shield", "desc": "Gentle coverage for light footsteps." },
+        "conversation-mask": { "name": "Vocal Mask", "desc": "Mid-range boost to cover voices nearby." },
+        "relax-sleep": { "name": "Deep Sleep", "desc": "Calm brown noise for restful sleep." },
+        "focus-work": { "name": "Deep Focus", "desc": "Flat pink noise to block distractions." },
+        "atmos-only": { "name": "Atmos only", "desc": "A mode for playing only ambient sounds (Atmos) without any noise." }
+    },
     "onboarding": {
         "next": "Next",
         "start": "Get Started",
