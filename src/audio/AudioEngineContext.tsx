@@ -332,31 +332,38 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
         const ctx = new AudioContext();
 
+        // Android のジェスチャー有効期限対策: 
+        // モジュールのロードを待つ前に、ユーザー操作のコンテキスト内で即座に resume() を試みる
+        if (ctx.state === 'suspended') {
+            await ctx.resume().catch(err => {
+                addLog('warn', `[AudioContext] 初回 resume() 失敗: ${String(err)}`);
+            });
+        }
+
         // === AudioContext 自動サスペンド検知・復帰 ===
-        // Android/iOS のバックグラウンド移行・通知音割り込みで AudioContext が
-        // 予告なく 'suspended' になることがある。onstatechange で検知して自動復帰する。
         ctx.onstatechange = () => {
             addLog('warn', `[AudioContext] state 変化: ${ctx.state}`);
-            // 再生中に suspended になった場合のみ復帰を試みる
             if (ctx.state === 'suspended' && isPlayingRef.current) {
                 addLog('warn', '[AudioContext] 再生中に suspended → resume() を試みます');
-                ctx.resume()
-                    .then(() => addLog('info', '[AudioContext] resume() 成功 → 再生継続'))
-                    .catch((err) => {
-                        addLog('error', `[AudioContext] resume() 失敗: ${String(err)}`);
-                        console.warn('[AudioEngine] AudioContext 自動復帰に失敗しました:', err);
-                    });
+                ctx.resume().catch((err) => {
+                    addLog('error', `[AudioContext] resume() 失敗: ${String(err)}`);
+                });
             }
         };
 
-        // AudioWorklet モジュールの登録
-        await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/white-noise-processor.js`);
-        await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/pink-noise-processor.js`);
-        await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/brown-noise-processor.js`);
-        await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/sub-bass-processor.js`);
-        await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}worklets/keep-alive-processor.js`);
+        // AudioWorklet モジュールの登録 (並列実行して待機時間を短縮)
+        addLog('info', '[AudioContext] Worklet モジュールのロードを開始...');
+        const baseUrl = import.meta.env.BASE_URL;
+        await Promise.all([
+            ctx.audioWorklet.addModule(`${baseUrl}worklets/white-noise-processor.js`),
+            ctx.audioWorklet.addModule(`${baseUrl}worklets/pink-noise-processor.js`),
+            ctx.audioWorklet.addModule(`${baseUrl}worklets/brown-noise-processor.js`),
+            ctx.audioWorklet.addModule(`${baseUrl}worklets/sub-bass-processor.js`),
+            ctx.audioWorklet.addModule(`${baseUrl}worklets/keep-alive-processor.js`),
+        ]);
+        addLog('info', '[AudioContext] Worklet モジュールのロード完了');
 
-        // ミキサーゲインノード（3つのWorkletをまとめる）
+        // ミキサーゲインノード
         const mixerGain = ctx.createGain();
         mixerGainRef.current = mixerGain;
 
@@ -376,26 +383,17 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         const master = new MasterBus(ctx);
         masterBusRef.current = master;
 
-        // シグナルフロー接続:
-        // [WorkletNodes] --+--> mixerGain --> filterChain --> exciter --+
-        //                  |                                            |
-        // [Atmos Layers] --+                                            v
-        //                                                      [reverbProcessor] --> fade --> masterBus --> destination
-        
         // リバーブプロセッサ
         const reverb = new ReverbProcessor(ctx);
         reverbProcessorRef.current = reverb;
 
         mixerGain.connect(filterChain.input);
         filterChain.output.connect(exciter.input);
-        
-        // 音源の合流地点（フィルタ/エキサイター適用後のノイズ）をリバーブへ
         exciter.output.connect(reverb.input);
-        
         reverb.output.connect(fade.input);
         fade.output.connect(master.input);
 
-        // AudioWorkletNode の作成（4チャンネル）
+        // AudioWorkletNode の作成
         const noiseTypes = ['pink', 'brown', 'white', 'sub'] as const;
         const workletNames: Record<string, string> = {
             pink: 'pink-noise-processor',
@@ -405,26 +403,21 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         };
         for (const type of noiseTypes) {
             const node = new AudioWorkletNode(ctx, workletNames[type], {
-                outputChannelCount: [2], // ステレオ出力を明示
+                outputChannelCount: [2],
             });
             node.connect(mixerGain);
             workletNodesRef.current.set(type, node);
         }
 
-        // Keep-Alive ノードの作成（10秒間隔でPing送信）
+        // Keep-Alive ノード
         const keepAliveNode = new AudioWorkletNode(ctx, 'keep-alive-processor');
         keepAliveNode.port.postMessage({ type: 'setSampleRate', sampleRate: ctx.sampleRate });
         keepAliveNode.port.postMessage({ type: 'setInterval', interval: 10 });
-        
         keepAliveNode.port.onmessage = (event) => {
             if (event.data.type === 'ping' && isPlayingRef.current) {
-                // サスペンド回避のためのログ出力（メインスレッドを動かす）
                 addLog('info', `[KeepAlive] Worker Ping received (Time: ${event.data.time.toFixed(1)}s)`);
             }
         };
-        
-        // destination にダミー接続しないと process() が駆動しない場合があるため接続
-        // ※プロセッサ側で無音出力にしているため、実際の音には影響しない
         keepAliveNode.connect(ctx.destination);
         keepAliveNodeRef.current = keepAliveNode;
 
@@ -496,73 +489,81 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
     // === 再生 ===
     const play = useCallback(async () => {
-        // [1] 先にバックグラウンド再生を開始 (ジェスチャー有効期限対策)
-        // ensureAudioContext の async 処理を待つ前に play() を呼ぶことで、ユーザーアクションとして確実に認識させる
-        if (!backgroundAudioRef.current) {
-            const audio = new Audio();
-            audio.src = createSilentAudioBlobUrl();
-            audio.preload = 'auto';
-            audio.setAttribute('playsinline', 'true');
-            audio.loop = true;
-            audio.volume = 0.01;
-            // DOM に追加（Android Chrome でのバックグラウンド維持に必須）
-            audio.style.display = 'none';
-            document.body.appendChild(audio);
-            backgroundAudioRef.current = audio;
-        }
-
-        const audioPlayPromise = backgroundAudioRef.current.play().catch(err => {
-            addLog('warn', `[backgroundAudio] play() 失敗: ${String(err)}`);
-        });
-
-        // [2] AudioContext の準備 (awaitあり)
-        const ctx = await ensureAudioContext();
-        if (ctx.state === 'suspended') {
-            await ctx.resume();
-        }
-
-        // [3] AudioContext への接続 (初回のみ)
-        if (!backgroundSourceRef.current && backgroundAudioRef.current) {
-            const source = ctx.createMediaElementSource(backgroundAudioRef.current);
-            const gain = ctx.createGain();
-            gain.gain.value = 1.0;
-            if (reverbProcessorRef.current) {
-                gain.connect(reverbProcessorRef.current.input);
-            } else if (fadeControllerRef.current) {
-                gain.connect(fadeControllerRef.current.input);
-            }
-            backgroundSourceRef.current = source;
-            backgroundGainRef.current = gain;
-        }
-
-        await audioPlayPromise;
-        const currentState = stateRef.current;
-        // タイトルの決定（現在のプリセット名を取得）
-        let currentTitle = 'Your Custom Mix';
-        if (currentState.activePresetId) {
-            const p = BUILT_IN_PRESETS.find(p => p.id === currentState.activePresetId) || customPresets.find(p => p.id === currentState.activePresetId);
-            if (p) currentTitle = p.name;
-        }
-
-        try {
-            await startAudioForegroundService('SoundNest', currentTitle);
-            const status = await getAudioForegroundStatus();
-            addLog('info', `[ForegroundService] started with title: ${currentTitle}, running=${status.running}`);
-        } catch (err) {
-            addLog('warn', `[ForegroundService] start failed: ${String(err)}`);
-        }
-
-        addLog('info', `▶ 再生開始 (fade: ${currentState.fade.enabled ? `有効 ${currentState.fade.duration}s` : '無効'})`);
-        syncAudioParams(currentState);
-        isPlayingRef.current = true; // onstatechange が参照する Ref を即座に更新
+        // [0] UI の早期更新
+        isPlayingRef.current = true;
         dispatch({ type: 'SET_PLAYING', payload: true });
-        // フェード有効時はフェードイン、無効時は即再生
-        if (currentState.fade.enabled) {
-            await fadeControllerRef.current?.fadeIn();
-        } else {
-            fadeControllerRef.current?.unmute();
+
+        // [1] 先にバックグラウンド再生を開始 (ジェスチャー有効期限対策)
+        try {
+            if (!backgroundAudioRef.current) {
+                const audio = new Audio();
+                audio.src = createSilentAudioBlobUrl();
+                audio.preload = 'auto';
+                audio.setAttribute('playsinline', 'true');
+                audio.loop = true;
+                audio.volume = 0.01;
+                audio.style.display = 'none';
+                document.body.appendChild(audio);
+                backgroundAudioRef.current = audio;
+            }
+
+            const audioPlayPromise = backgroundAudioRef.current.play().catch(err => {
+                addLog('warn', `[backgroundAudio] play() 失敗: ${String(err)}`);
+            });
+
+            // [2] AudioContext の準備 (awaitあり)
+            const ctx = await ensureAudioContext();
+            if (ctx.state === 'suspended') {
+                await ctx.resume();
+            }
+
+            // [3] AudioContext への接続 (初回のみ)
+            if (!backgroundSourceRef.current && backgroundAudioRef.current) {
+                const source = ctx.createMediaElementSource(backgroundAudioRef.current);
+                const gain = ctx.createGain();
+                gain.gain.value = 1.0;
+                if (reverbProcessorRef.current) {
+                    gain.connect(reverbProcessorRef.current.input);
+                } else if (fadeControllerRef.current) {
+                    gain.connect(fadeControllerRef.current.input);
+                }
+                backgroundSourceRef.current = source;
+                backgroundGainRef.current = gain;
+            }
+
+            await audioPlayPromise;
+            
+            const currentState = stateRef.current;
+            // タイトルの決定（現在のプリセット名を取得）
+            let currentTitle = 'Your Custom Mix';
+            if (currentState.activePresetId) {
+                const p = BUILT_IN_PRESETS.find(p => p.id === currentState.activePresetId) || customPresets.find(p => p.id === currentState.activePresetId);
+                if (p) currentTitle = p.name;
+            }
+
+            try {
+                await startAudioForegroundService('SoundNest', currentTitle);
+                const status = await getAudioForegroundStatus();
+                addLog('info', `[ForegroundService] started with title: ${currentTitle}, running=${status.running}`);
+            } catch (err) {
+                addLog('warn', `[ForegroundService] start failed: ${String(err)}`);
+            }
+
+            addLog('info', `▶ 再生開始 (fade: ${currentState.fade.enabled ? `有効 ${currentState.fade.duration}s` : '無効'})`);
+            syncAudioParams(currentState);
+            
+            // フェード有効時はフェードイン、無効時は即再生
+            if (currentState.fade.enabled) {
+                await fadeControllerRef.current?.fadeIn();
+            } else {
+                fadeControllerRef.current?.unmute();
+            }
+        } catch (err) {
+            addLog('error', `[play] 致命的エラー: ${String(err)}`);
+            isPlayingRef.current = false;
+            dispatch({ type: 'SET_PLAYING', payload: false });
         }
-    }, [ensureAudioContext, syncAudioParams]);
+    }, [ensureAudioContext, syncAudioParams, customPresets]);
 
     // === 停止 ===
     const stop = useCallback(async () => {
