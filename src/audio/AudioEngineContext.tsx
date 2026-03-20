@@ -32,6 +32,7 @@ import { addLog } from './AudioLogger';
 import { useState } from 'react';
 import { customFilesDb } from './customFilesDb';
 import { startAudioForegroundService, stopAudioForegroundService } from '../native/audioForeground';
+import { Capacitor } from '@capacitor/core';
 
 // ===== localStorage キー =====
 const STORAGE_KEY = 'soundnest-state';
@@ -468,20 +469,27 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 audio.src = 'data:audio/ogg;base64,T2dnUwACAAAAAAAAAADqnjMlAAAAAOyyzAEBHgF2b3JiaXMAAAAAAUAfAABAHwAAQB8AAIAJAARB//////////8JTGAVGAAAAAAQBmNvbW1lbnQAAABgeGlwaC5vcmcAAAAAAAAAAAAAAAAAAAAA';
             }
             audio.loop = true;
-            audio.volume = 0.001; // 事実上の無音だが再生中とみなされる音量
+            audio.volume = 0.01; // Android Chrome 等でメディアセッションを維持するのに必要な最低限の音量
             backgroundAudioRef.current = audio;
         }
         backgroundAudioRef.current.play().catch((err) => {
             addLog('warn', `[backgroundAudio] play() 失敗: ${String(err)}`);
         });
+        const currentState = stateRef.current;
+        // タイトルの決定（現在のプリセット名を取得）
+        let currentTitle = 'Your Custom Mix';
+        if (currentState.activePresetId) {
+            const p = BUILT_IN_PRESETS.find(p => p.id === currentState.activePresetId) || customPresets.find(p => p.id === currentState.activePresetId);
+            if (p) currentTitle = p.name;
+        }
+
         try {
-            await startAudioForegroundService('SoundNest', 'Background playback is active');
-            addLog('info', '[ForegroundService] started');
+            await startAudioForegroundService('SoundNest', currentTitle);
+            addLog('info', `[ForegroundService] started with title: ${currentTitle}`);
         } catch (err) {
             addLog('warn', '[ForegroundService] start failed');
         }
 
-        const currentState = stateRef.current;
         addLog('info', `▶ 再生開始 (fade: ${currentState.fade.enabled ? `有効 ${currentState.fade.duration}s` : '無効'})`);
         syncAudioParams(currentState);
         isPlayingRef.current = true; // onstatechange が参照する Ref を即座に更新
@@ -547,23 +555,27 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         if (state.isPlaying) {
             navigator.mediaSession.playbackState = 'playing';
 
-            // 現在のプリセット名を取得（カスタムの場合は「Your Custom Mix」）
+            // タイトルの決定
             let title = 'Your Custom Mix';
             if (state.activePresetId) {
-                const p = BUILT_IN_PRESETS.find(p => p.id === state.activePresetId);
+                const p = [...BUILT_IN_PRESETS, ...customPresets].find(p => p.id === state.activePresetId);
                 if (p) title = p.name;
             }
 
             navigator.mediaSession.metadata = new MediaMetadata({
                 title: title,
-                artist: 'Noisemamire',
+                artist: 'SoundNest',
                 album: 'サウンドマスキング',
                 artwork: [
-                    // アプリアイコンが存在する前提（後で設定）
-                    { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-                    { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }
+                    { src: '/SoundNest/icon-192.png', sizes: '192x192', type: 'image/png' },
+                    { src: '/SoundNest/icon-512.png', sizes: '512x512', type: 'image/png' }
                 ]
             });
+
+            // 再生中のみサービス（通知）のタイトルも更新を試みる
+            if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+                startAudioForegroundService('SoundNest', title).catch(() => {});
+            }
 
             // ロック画面からの操作ハンドラ
             navigator.mediaSession.setActionHandler('play', () => play());
@@ -571,9 +583,8 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             navigator.mediaSession.setActionHandler('stop', () => stop());
         } else {
             navigator.mediaSession.playbackState = 'paused';
-            // 再生停止中はハンドラを解除しない（ロック画面から再開できるようにするため）
         }
-    }, [state.isPlaying, state.activePresetId, play, stop]);
+    }, [state.isPlaying, state.activePresetId, customPresets, play, stop]);
 
     const connectSoundscapeLayer = useCallback((layer: SoundscapeLayer, ambientVolume: number) => {
         if (!audioCtxRef.current || !fadeControllerRef.current) return;
