@@ -29,6 +29,7 @@
   --accent-primary-soft: rgba(30, 58, 95, 0.08);
   --accent-green: #2E7D32;
   --accent-purple: #8B6B8B;
+  --accent-lavender: #9575CD; /* ラベンダーカラー (ライト) */
   --accent-red: #8B4049;
 
   /* ノイズチャンネルカラー（鮮やか・高コントラスト） */
@@ -72,6 +73,7 @@
   --accent-primary-soft: rgba(91, 143, 191, 0.12);
   --accent-green: #4CAF50;
   --accent-purple: #A88BAA;
+  --accent-lavender: #B39DDB; /* ラベンダーカラー (ダーク) */
   --accent-red: #AA7B80;
 
   /* ノイズチャンネルカラー（ダークモード用 ネオン調・高コントラスト） */
