@@ -102,6 +102,14 @@
             "desc": "A mode for playing only ambient sounds (Atmos) without any noise."
         }
     },
+    "mixer": {
+        "noiseMixHeader": "NOISE MIX",
+        "toneHeader": "TONE (EQ & HARMONICS)",
+        "atmosMasterHeader": "ATMOS MASTER",
+        "spatialDepthHeader": "SPATIAL DEPTH (MATTE / WET)",
+        "spatialDepthMatte": "Matte",
+        "spatialDepthWet": "Wet"
+    },
     "onboarding": {
         "next": "Next",
         "start": "Get Started",

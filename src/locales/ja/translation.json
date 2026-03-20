@@ -102,6 +102,14 @@
             "desc": "ノイズを再生せずに環境音 (Atmos)のみを再生するためのモードです"
         }
     },
+    "mixer": {
+        "noiseMixHeader": "ノイズ・ミックス",
+        "toneHeader": "トーン (EQ & 倍音)",
+        "atmosMasterHeader": "環境音マスター",
+        "spatialDepthHeader": "空間の広がり (マット / ウェット)",
+        "spatialDepthMatte": "マット (近)",
+        "spatialDepthWet": "ウェット (遠)"
+    },
     "onboarding": {
         "next": "次へ",
         "start": "はじめる",

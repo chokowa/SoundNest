@@ -16,7 +16,7 @@ class WhiteNoiseProcessor extends AudioWorkletProcessor {
         for (let channel = 0; channel < output.length; channel++) {
             const channelData = output[channel];
             for (let i = 0; i < channelData.length; i++) {
-                // -1 ～ +1 の一様分布乱数
+                // チャンネルごとに独立した -1 ～ +1 の一様分布乱数
                 channelData[i] = (Math.random() * 2 - 1) * gain;
             }
         }

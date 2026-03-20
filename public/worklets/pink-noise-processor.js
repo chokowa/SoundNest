@@ -7,8 +7,11 @@
 class PinkNoiseProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        // Paul Kellet フィルタ用状態変数（チャンネルごと）
-        this._b = [0, 0, 0, 0, 0, 0, 0];
+        // Paul Kellet フィルタ用状態変数（チャンネルごと: [L[7], R[7]]）
+        this._b = [
+            [0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0]
+        ];
     }
 
     static get parameterDescriptors() {
@@ -20,10 +23,10 @@ class PinkNoiseProcessor extends AudioWorkletProcessor {
     process(_inputs, outputs, parameters) {
         const output = outputs[0];
         const gain = parameters.gain[0];
-        const b = this._b;
 
         for (let channel = 0; channel < output.length; channel++) {
             const channelData = output[channel];
+            const b = this._b[channel] || this._b[0]; 
             for (let i = 0; i < channelData.length; i++) {
                 const white = Math.random() * 2 - 1;
 

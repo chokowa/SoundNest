@@ -25,6 +25,7 @@ import { TONE_SETTINGS } from './tones';
 import { FilterChain } from './FilterChain';
 import { HarmonicExciter } from './HarmonicExciter';
 import { MasterBus } from './MasterBus';
+import { ReverbProcessor } from './ReverbProcessor';
 import { FadeController } from './FadeController';
 import { BUILT_IN_PRESETS, DEFAULT_PRESET_ID, findPresetById, loadCustomPresets, saveCustomPresets } from './presets';
 import { addLog } from './AudioLogger';
@@ -49,6 +50,7 @@ const initialState: AudioEngineState = {
     soundscapeLayers: [],
     customFiles: [],
     sleepTimerTarget: null,
+    spatialDepth: 0.0,
 };
 
 // ===== Reducer =====
@@ -143,6 +145,8 @@ function audioReducer(state: AudioEngineState, action: AudioEngineAction): Audio
                 : state;
         case 'SET_SLEEP_TIMER':
             return { ...state, sleepTimerTarget: action.payload };
+        case 'SET_SPATIAL_DEPTH':
+            return { ...state, spatialDepth: action.payload };
         case 'LOAD_STATE':
             return { ...action.payload, customFiles: action.payload.customFiles ?? [], sleepTimerTarget: null };
         default:
@@ -163,6 +167,7 @@ interface AudioEngineContextValue {
     setFade: (fade: Partial<FadeSettings>) => void;
     setMaster: (master: Partial<MasterSettings>) => void;
     setAmbientMasterVolume: (volume: number) => void;
+    setSpatialDepth: (depth: number) => void;
     applyPreset: (preset: Preset) => void;
     addSoundscapeFromFile: (file: File) => void;
     addSoundscapeLayer: (layer: SoundscapeLayer) => void;
@@ -225,6 +230,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
     const workletNodesRef = useRef<Map<string, AudioWorkletNode>>(new Map());
     const filterChainRef = useRef<FilterChain | null>(null);
     const harmonicExciterRef = useRef<HarmonicExciter | null>(null);
+    const reverbProcessorRef = useRef<ReverbProcessor | null>(null);
     const masterBusRef = useRef<MasterBus | null>(null);
     const fadeControllerRef = useRef<FadeController | null>(null);
     const mixerGainRef = useRef<GainNode | null>(null);
@@ -321,10 +327,22 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         masterBusRef.current = master;
 
         // シグナルフロー接続:
-        // [WorkletNodes] → mixerGain → filterChain → exciter → fade → masterBus → destination
+        // [WorkletNodes] --+--> mixerGain --> filterChain --> exciter --+
+        //                  |                                            |
+        // [Atmos Layers] --+                                            v
+        //                                                      [reverbProcessor] --> fade --> masterBus --> destination
+        
+        // リバーブプロセッサ
+        const reverb = new ReverbProcessor(ctx);
+        reverbProcessorRef.current = reverb;
+
         mixerGain.connect(filterChain.input);
         filterChain.output.connect(exciter.input);
-        exciter.output.connect(fade.input);
+        
+        // 音源の合流地点（フィルタ/エキサイター適用後のノイズ）をリバーブへ
+        exciter.output.connect(reverb.input);
+        
+        reverb.output.connect(fade.input);
         fade.output.connect(master.input);
 
         // AudioWorkletNode の作成（4チャンネル）
@@ -336,7 +354,9 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             sub: 'sub-bass-processor',
         };
         for (const type of noiseTypes) {
-            const node = new AudioWorkletNode(ctx, workletNames[type]);
+            const node = new AudioWorkletNode(ctx, workletNames[type], {
+                outputChannelCount: [2], // ステレオ出力を明示
+            });
             node.connect(mixerGain);
             workletNodesRef.current.set(type, node);
         }
@@ -397,6 +417,9 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
         // マスター
         masterBusRef.current?.setVolume(s.master.volume);
+
+        // 空間深度
+        reverbProcessorRef.current?.setDepth(s.spatialDepth);
 
         // ATMOS マスター (環境音全体)
         if (audioCtxRef.current) {
@@ -553,7 +576,13 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         // 音量コントロール用ゲイン
         const masterGain = ctx.createGain();
         masterGain.gain.value = layer.volume * ambientVolume;
-        masterGain.connect(fadeControllerRef.current.input);
+        // 環境音もリバーブ（空間深度）の影響を受けるように接続
+        if (reverbProcessorRef.current) {
+            masterGain.connect(reverbProcessorRef.current.input);
+        } else {
+            // 万が一リバーブノードがない場合のフォールバック（直接フェードへ）
+            masterGain.connect(fadeControllerRef.current.input);
+        }
 
         // 2つのAudio要素と関連ノードを保持する
         // _onTimeUpdate / _onEnded はリスナーの参照を保持し、後で解除するために使う
@@ -878,6 +907,9 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         deleteCustomPreset,
         setSleepTimer: useCallback((timestamp: number | null) => {
             dispatch({ type: 'SET_SLEEP_TIMER', payload: timestamp });
+        }, []),
+        setSpatialDepth: useCallback((depth: number) => {
+            dispatch({ type: 'SET_SPATIAL_DEPTH', payload: depth });
         }, []),
         addCustomFile: useCallback((entry: CustomFileEntry) => {
             dispatch({ type: 'ADD_CUSTOM_FILE', payload: entry });

@@ -7,9 +7,9 @@
 class SubBassProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        // 二段のリーキーインテグレーター状態
-        this._last1 = 0;
-        this._last2 = 0;
+        // 二段のリーキーインテグレーター状態（チャンネルごと）
+        this._last1 = [0, 0];
+        this._last2 = [0, 0];
     }
 
     static get parameterDescriptors() {
@@ -24,19 +24,22 @@ class SubBassProcessor extends AudioWorkletProcessor {
 
         for (let channel = 0; channel < output.length; channel++) {
             const channelData = output[channel];
+            let last1 = this._last1[channel] || 0;
+            let last2 = this._last2[channel] || 0;
             for (let i = 0; i < channelData.length; i++) {
                 const white = Math.random() * 2 - 1;
 
                 // 一段目: ブラウンノイズ相当
-                this._last1 = (this._last1 + (0.02 * white)) / 1.02;
+                last1 = (last1 + (0.02 * white)) / 1.02;
 
                 // 二段目: さらに平滑化してサブバス帯域に絞り込む
-                // 係数を小さく（0.005）することでより低域成分のみを残す
-                this._last2 = (this._last2 + (0.005 * this._last1)) / 1.005;
+                last2 = (last2 + (0.005 * last1)) / 1.005;
 
                 // ゲイン正規化（二重平滑で振幅が非常に小さくなるため12倍で補正）
-                channelData[i] = this._last2 * 12 * gain;
+                channelData[i] = last2 * 12 * gain;
             }
+            this._last1[channel] = last1;
+            this._last2[channel] = last2;
         }
 
         return true;

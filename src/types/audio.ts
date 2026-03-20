@@ -129,6 +129,8 @@ export interface AudioEngineState {
     customFiles: CustomFileEntry[];
     /** スリープタイマーの目標時刻（タイムスタンプ） */
     sleepTimerTarget?: number | null;
+    /** 空間深度（マット 0.0 ～ ウェット 1.0） */
+    spatialDepth: number;
 }
 
 /** オーディオエンジンアクション */
@@ -149,5 +151,6 @@ export type AudioEngineAction =
     | { type: 'LOAD_CUSTOM_FILES'; payload: CustomFileEntry[] }
     | { type: 'LOAD_STATE'; payload: AudioEngineState }
     | { type: 'SET_AMBIENT_MASTER_VOLUME'; payload: number }
+    | { type: 'SET_SPATIAL_DEPTH'; payload: number }
     | { type: 'CLEAR_ACTIVE_PRESET'; payload: string }
     | { type: 'SET_SLEEP_TIMER'; payload: number | null };
