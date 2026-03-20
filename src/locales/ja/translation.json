@@ -28,6 +28,12 @@
         "spatialDepthHeader": "空間の広がり (マット / ウェット)",
         "spatialDepthMatte": "マット (近)",
         "spatialDepthWet": "ウェット (遠)",
+        "channels": {
+            "brown": { "label": "Brown Noise", "desc": "深い低域・集中や睡眠" },
+            "pink": { "label": "Pink Noise", "desc": "自然な響き・リラックス" },
+            "white": { "label": "White Noise", "desc": "全帯域・強力なマスキング" },
+            "sub": { "label": "Sub Bass", "desc": "響く重低音・足音対策" }
+        },
         "tones": {
             "deep": "重低音",
             "muffled": "マイルド",

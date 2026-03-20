@@ -287,7 +287,7 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
                                             {t(`sounds.${sound.id}.label`, sound.label)}
                                         </div>
                                         <div style={{ fontSize: 12, color: isActive ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)', marginTop: 2, fontFamily: 'Inter' }}>
-                                            {isActive ? t('sounds.playing', '再生中') : t('sounds.stopped', '停止中')}
+                                            {isActive ? t('sounds.statusPlaying') : t('sounds.statusStopped')}
                                         </div>
                                     </div>
                                 </div>
@@ -380,7 +380,7 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
                                             {file.name}
                                         </div>
                                         <div style={{ fontSize: 12, color: isActive ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)', marginTop: 2, fontFamily: 'Inter' }}>
-                                            {t('sounds.customSound', 'カスタム')}  ·  {isActive ? t('sounds.playing', '再生中') : t('sounds.stopped', '停止中')}
+                                            {t('sounds.customSound')}  ·  {isActive ? t('sounds.statusPlaying') : t('sounds.statusStopped')}
                                         </div>
                                     </div>
                                     {/* リストから削除ボタン */}

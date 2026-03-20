@@ -28,6 +28,12 @@
         "spatialDepthHeader": "SPATIAL DEPTH (MATTE / WET)",
         "spatialDepthMatte": "Matte",
         "spatialDepthWet": "Wet",
+        "channels": {
+            "brown": { "label": "Brown Noise", "desc": "Deep lows · Focus & Sleep" },
+            "pink": { "label": "Pink Noise", "desc": "Natural ambiance · Relax" },
+            "white": { "label": "White Noise", "desc": "Full spectrum · Strong masking" },
+            "sub": { "label": "Sub Bass", "desc": "Resonant lows · Footstep shield" }
+        },
         "tones": {
             "deep": "Deep",
             "muffled": "Muffled",

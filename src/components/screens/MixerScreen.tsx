@@ -11,10 +11,10 @@ interface MixerScreenProps {
 
 // ノイズチャンネル定義
 const NOISE_CHANNELS = [
-    { key: 'brown' as const, label: 'Brown Noise', desc: '深い低域・集中や睡眠', cssVar: '--noise-brown' },
-    { key: 'pink' as const, label: 'Pink Noise', desc: '自然な響き・リラックス', cssVar: '--noise-pink' },
-    { key: 'white' as const, label: 'White Noise', desc: '全帯域・強力なマスキング', cssVar: '--noise-white' },
-    { key: 'sub' as const, label: 'Sub Bass', desc: '響く重低音・足音対策', cssVar: '--noise-sub' },
+    { key: 'brown' as const, cssVar: '--noise-brown' },
+    { key: 'pink' as const, cssVar: '--noise-pink' },
+    { key: 'white' as const, cssVar: '--noise-white' },
+    { key: 'sub' as const, cssVar: '--noise-sub' },
 ];
 
 export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
@@ -104,8 +104,8 @@ export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
                             value={blend[ch.key] ?? 0}
                             onChange={v => setBlend({ [ch.key]: v })}
                             color={`var(${ch.cssVar})`}
-                            label={ch.label}
-                            description={ch.desc}
+                            label={t(`mixer.channels.${ch.key}.label`)}
+                            description={t(`mixer.channels.${ch.key}.desc`)}
                         />
                     ))}
                 </div>
