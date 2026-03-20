@@ -231,6 +231,48 @@ function createSilentAudioBlobUrl(): string {
     return URL.createObjectURL(blob);
 }
 
+// ===== Helper: Create 2s looping buffer for legacy noise fallback =====
+function createLegacyNoiseBuffer(ctx: AudioContext, type: 'white' | 'pink' | 'brown' | 'sub'): AudioBuffer {
+    const duration = 2.0;
+    const sampleRate = ctx.sampleRate;
+    const numSamples = sampleRate * duration;
+    const buffer = ctx.createBuffer(2, numSamples, sampleRate);
+
+    for (let channel = 0; channel < 2; channel++) {
+        const data = buffer.getChannelData(channel);
+        if (type === 'white') {
+            for (let i = 0; i < numSamples; i++) data[i] = Math.random() * 2 - 1;
+        } else if (type === 'pink') {
+            let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+            for (let i = 0; i < numSamples; i++) {
+                const white = Math.random() * 2 - 1;
+                b0 = 0.99886 * b0 + white * 0.0555179;
+                b1 = 0.99332 * b1 + white * 0.0750312;
+                b2 = 0.96900 * b2 + white * 0.1538520;
+                b3 = 0.86650 * b3 + white * 0.3104856;
+                b4 = 0.55000 * b4 + white * 0.5329522;
+                b5 = -0.7616 * b5 - white * 0.0168980;
+                data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+                b6 = white * 0.115926;
+            }
+        } else if (type === 'brown') {
+            let lastOut = 0;
+            for (let i = 0; i < numSamples; i++) {
+                const white = Math.random() * 2 - 1;
+                const out = (lastOut + (0.02 * white)) / 1.02;
+                data[i] = out * 3.5;
+                lastOut = out;
+            }
+        } else if (type === 'sub') {
+            const freq = 40;
+            for (let i = 0; i < numSamples; i++) {
+                data[i] = Math.sin(2 * Math.PI * freq * (i / sampleRate)) * (Math.random() * 0.1 + 0.9);
+            }
+        }
+    }
+    return buffer;
+}
+
 const AudioEngineCtx = createContext<AudioEngineContextValue | null>(null);
 
 // ===== Provider =====
@@ -330,10 +372,17 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             return audioCtxRef.current;
         }
 
-        const ctx = new AudioContext();
+        // 古いブラウザ用のプレフィックス対応
+        const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+        if (!AudioContextClass) {
+            addLog('error', '[AudioContext] Web Audio API が未サポートのブラウザです');
+            throw new Error('Web Audio API is not supported');
+        }
 
-        // Android のジェスチャー有効期限対策: 
-        // モジュールのロードを待つ前に、ユーザー操作のコンテキスト内で即座に resume() を試みる
+        const ctx = new AudioContextClass() as AudioContext;
+        addLog('info', `[AudioContext] 作成完了 (初期状態: ${ctx.state})`);
+
+        // Android のジェスチャー有効期限対策
         if (ctx.state === 'suspended') {
             await ctx.resume().catch(err => {
                 addLog('warn', `[AudioContext] 初回 resume() 失敗: ${String(err)}`);
@@ -351,39 +400,41 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             }
         };
 
-        // AudioWorklet モジュールの登録 (並列実行して待機時間を短縮)
-        addLog('info', '[AudioContext] Worklet モジュールのロードを開始...');
-        const baseUrl = import.meta.env.BASE_URL;
-        await Promise.all([
-            ctx.audioWorklet.addModule(`${baseUrl}worklets/white-noise-processor.js`),
-            ctx.audioWorklet.addModule(`${baseUrl}worklets/pink-noise-processor.js`),
-            ctx.audioWorklet.addModule(`${baseUrl}worklets/brown-noise-processor.js`),
-            ctx.audioWorklet.addModule(`${baseUrl}worklets/sub-bass-processor.js`),
-            ctx.audioWorklet.addModule(`${baseUrl}worklets/keep-alive-processor.js`),
-        ]);
-        addLog('info', '[AudioContext] Worklet モジュールのロード完了');
+        const hasWorkletSupport = !!ctx.audioWorklet;
+        addLog('info', `[AudioContext] AudioWorklet サポート: ${hasWorkletSupport}`);
+
+        if (hasWorkletSupport) {
+            // AudioWorklet モジュールの登録
+            addLog('info', '[AudioContext] Worklet モジュールのロードを開始...');
+            const baseUrl = import.meta.env.BASE_URL;
+            try {
+                await Promise.all([
+                    ctx.audioWorklet.addModule(`${baseUrl}worklets/white-noise-processor.js`),
+                    ctx.audioWorklet.addModule(`${baseUrl}worklets/pink-noise-processor.js`),
+                    ctx.audioWorklet.addModule(`${baseUrl}worklets/brown-noise-processor.js`),
+                    ctx.audioWorklet.addModule(`${baseUrl}worklets/sub-bass-processor.js`),
+                    ctx.audioWorklet.addModule(`${baseUrl}worklets/keep-alive-processor.js`),
+                ]);
+                addLog('info', '[AudioContext] Worklet モジュールのロード完了');
+            } catch (err) {
+                addLog('error', `[AudioContext] Worklet ロード失敗: ${String(err)}`);
+                // ロード失敗時はレガシーモードへ移行を試みるためあえて投げない
+            }
+        }
 
         // ミキサーゲインノード
         const mixerGain = ctx.createGain();
         mixerGainRef.current = mixerGain;
 
-        // フィルタチェーン
+        // フィルタ・エフェクトチェーン
         const filterChain = new FilterChain(ctx);
         filterChainRef.current = filterChain;
-
-        // ハーモニックエキサイター
         const exciter = new HarmonicExciter(ctx);
         harmonicExciterRef.current = exciter;
-
-        // フェードコントローラ
         const fade = new FadeController(ctx);
         fadeControllerRef.current = fade;
-
-        // マスターバス
         const master = new MasterBus(ctx);
         masterBusRef.current = master;
-
-        // リバーブプロセッサ
         const reverb = new ReverbProcessor(ctx);
         reverbProcessorRef.current = reverb;
 
@@ -393,7 +444,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         reverb.output.connect(fade.input);
         fade.output.connect(master.input);
 
-        // AudioWorkletNode の作成
+        // ノイズ音源の作成 (AudioWorklet または Legacy Fallback)
         const noiseTypes = ['pink', 'brown', 'white', 'sub'] as const;
         const workletNames: Record<string, string> = {
             pink: 'pink-noise-processor',
@@ -401,25 +452,61 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             white: 'white-noise-processor',
             sub: 'sub-bass-processor',
         };
+
         for (const type of noiseTypes) {
-            const node = new AudioWorkletNode(ctx, workletNames[type], {
-                outputChannelCount: [2],
-            });
-            node.connect(mixerGain);
-            workletNodesRef.current.set(type, node);
+            if (hasWorkletSupport && ctx.audioWorklet) {
+                try {
+                    const node = new AudioWorkletNode(ctx, workletNames[type], {
+                        outputChannelCount: [2],
+                    });
+                    node.connect(mixerGain);
+                    workletNodesRef.current.set(type, node);
+                    continue;
+                } catch (e) {
+                    addLog('warn', `[AudioContext] WorkletNode (${type}) 作成失敗、レガシーモードへフォールバックします: ${String(e)}`);
+                }
+            }
+
+            // Legacy Fallback: AudioBufferSourceNode + GainNode
+            addLog('info', `[AudioContext] レガシーソース作成: ${type}`);
+            const source = ctx.createBufferSource();
+            source.buffer = createLegacyNoiseBuffer(ctx, type);
+            source.loop = true;
+            const gain = ctx.createGain();
+            gain.gain.value = 0;
+            source.connect(gain);
+            gain.connect(mixerGain);
+            source.start();
+
+            // AudioWorkletNode とインターフェースを合わせるための Wrapper
+            const wrappedNode = {
+                parameters: {
+                    get: (name: string) => (name === 'gain' ? gain.gain : null)
+                },
+                connect: (dest: AudioNode) => gain.connect(dest),
+                disconnect: () => gain.disconnect()
+            } as unknown as AudioWorkletNode;
+
+            workletNodesRef.current.set(type, wrappedNode);
         }
 
-        // Keep-Alive ノード
-        const keepAliveNode = new AudioWorkletNode(ctx, 'keep-alive-processor');
-        keepAliveNode.port.postMessage({ type: 'setSampleRate', sampleRate: ctx.sampleRate });
-        keepAliveNode.port.postMessage({ type: 'setInterval', interval: 10 });
-        keepAliveNode.port.onmessage = (event) => {
-            if (event.data.type === 'ping' && isPlayingRef.current) {
-                addLog('info', `[KeepAlive] Worker Ping received (Time: ${event.data.time.toFixed(1)}s)`);
+        // Keep-Alive (Worklet サポート時のみ)
+        if (hasWorkletSupport && ctx.audioWorklet) {
+            try {
+                const keepAliveNode = new AudioWorkletNode(ctx, 'keep-alive-processor');
+                keepAliveNode.port.postMessage({ type: 'setSampleRate', sampleRate: ctx.sampleRate });
+                keepAliveNode.port.postMessage({ type: 'setInterval', interval: 10 });
+                keepAliveNode.port.onmessage = (event) => {
+                    if (event.data.type === 'ping' && isPlayingRef.current) {
+                        addLog('info', `[KeepAlive] Worker Ping received (Time: ${event.data.time.toFixed(1)}s)`);
+                    }
+                };
+                keepAliveNode.connect(ctx.destination);
+                keepAliveNodeRef.current = keepAliveNode;
+            } catch (e) {
+                addLog('warn', `[AudioContext] KeepAlive Node の作成に失敗しました: ${String(e)}`);
             }
-        };
-        keepAliveNode.connect(ctx.destination);
-        keepAliveNodeRef.current = keepAliveNode;
+        }
 
         audioCtxRef.current = ctx;
         return ctx;
