@@ -23,8 +23,10 @@ const AMBIENT_SOUNDS = [
 
 export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
     const { t, i18n } = useTranslation();
-    const { state, updateSoundscape, removeSoundscape, addSoundscapeLayer, addCustomFile, removeCustomFile } = useAudioEngine();
-    const { soundscapeLayers, isPlaying, customFiles = [] } = state;
+    const { state, updateSoundscape, removeSoundscape, addSoundscapeLayer, addCustomFile, removeCustomFile, presets } = useAudioEngine();
+    const { soundscapeLayers, customFiles = [], activePresetId } = state;
+
+    const activePreset = presets.find(p => p.id === activePresetId);
 
     const [showHint, setShowHint] = useState<boolean>(true);
 
@@ -125,10 +127,16 @@ export function SoundsScreen({ isDark, onToggleDark }: SoundsScreenProps) {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    {isPlaying && (
-                        <div className="nm-badge" style={{ background: 'var(--accent-green)', color: '#FFFFFF' }}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', display: 'inline-block' }} />
-                            + Noise
+                    {activePreset && (
+                        <div style={{
+                            padding: '6px 14px',
+                            borderRadius: 20,
+                            border: '1px solid var(--border-default)',
+                            fontSize: 12,
+                            color: 'var(--text-secondary)',
+                            fontFamily: 'Inter',
+                        }}>
+                            {activePreset.builtIn ? t(`presets.${activePreset.id}.name`) : activePreset.name}
                         </div>
                     )}
                     {!showHint && (
