@@ -534,6 +534,10 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
     // === オーディオパラメータの同期 ===
     const syncAudioParams = useCallback((s: AudioEngineState) => {
+      try {
+        const ctx = audioCtxRef.current;
+        if (!ctx) return; // B1: null ガード
+
         // ノイズブレンド（4チャンネル）
         const blendMap: Record<string, number> = {
             pink: s.blend.pink,
@@ -546,11 +550,16 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             if (node) {
                 const param = node.parameters.get('gain');
                 if (param) {
-                    const now = audioCtxRef.current!.currentTime;
-                    // クリックノイズ防止: 現在のスケジュールをキャンセルし現在位置から開始
-                    param.cancelScheduledValues(now);
-                    param.setValueAtTime(param.value, now);
-                    param.setTargetAtTime(gain, now, 0.05);
+                    const now = ctx.currentTime;
+                    // B2: メソッド存在確認ガード付きパラメータ変更
+                    if (typeof param.cancelScheduledValues === 'function') {
+                        param.cancelScheduledValues(now);
+                    }
+                    if (typeof param.setTargetAtTime === 'function') {
+                        param.setTargetAtTime(gain, now, 0.05);
+                    } else {
+                        param.value = gain;
+                    }
                 }
             }
         }
@@ -572,15 +581,21 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         reverbProcessorRef.current?.setDepth(s.spatialDepth);
 
         // ATMOS マスター (環境音全体)
-        if (audioCtxRef.current) {
-            for (const layer of s.soundscapeLayers) {
-                const entry = soundscapeSourcesRef.current.get(layer.id);
-                if (entry) {
-                    const effectiveVolume = layer.volume * s.master.ambientMasterVolume;
-                    entry.gain.gain.setTargetAtTime(effectiveVolume, audioCtxRef.current.currentTime, 0.05);
+        for (const layer of s.soundscapeLayers) {
+            const entry = soundscapeSourcesRef.current.get(layer.id);
+            if (entry) {
+                const effectiveVolume = layer.volume * s.master.ambientMasterVolume;
+                const now = ctx.currentTime;
+                if (typeof entry.gain.gain.setTargetAtTime === 'function') {
+                    entry.gain.gain.setTargetAtTime(effectiveVolume, now, 0.05);
+                } else {
+                    entry.gain.gain.value = effectiveVolume;
                 }
             }
         }
+      } catch (err) {
+        addLog('error', `[syncAudioParams] エラー: ${String(err)}`);
+      }
     }, []);
 
     // === 状態変更時にオーディオパラメータを同期 ===
@@ -628,6 +643,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             const source = ctx.createMediaElementSource(backgroundAudioRef.current);
             const gain = ctx.createGain();
             gain.gain.value = 1.0;
+            source.connect(gain); // B4: 接続漏れ修正
             if (reverbProcessorRef.current) {
                 gain.connect(reverbProcessorRef.current.input);
             } else if (fadeControllerRef.current) {
