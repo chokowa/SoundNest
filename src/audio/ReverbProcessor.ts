@@ -71,14 +71,20 @@ export class ReverbProcessor {
         const now = this.ctx.currentTime;
         const rampTime = 0.2;
 
-        // 1. ドライ/ウェット比率
-        this.dryGain.gain.setTargetAtTime(Math.cos(clamped * Math.PI * 0.4), now, rampTime); 
-        this.wetGain.gain.setTargetAtTime(Math.sin(clamped * Math.PI * 0.4) * 0.8, now, rampTime);
+        // 1. ドライ/ウェット比率 (Equal Power Crossfade)
+        // 範囲を 0.5 * PI に広げ、ウェット100%時にウェット信号をフルに抽出する
+        this.dryGain.gain.setTargetAtTime(Math.cos(clamped * Math.PI * 0.5), now, rampTime); 
+        // ウェット側は空間の広がりによるエネルギー分散を考慮し、少し強めにブースト (1.2倍)
+        this.wetGain.gain.setTargetAtTime(Math.sin(clamped * Math.PI * 0.5) * 1.2, now, rampTime);
 
         // 2. 距離による高域減衰 (LPF)
-        // ウェットになるほどカットオフ周波数を下げる (20kHz -> 3kHz)
         const filterFreq = 20000 * Math.pow(0.15, clamped);
         this.filter.frequency.setTargetAtTime(filterFreq, now, rampTime);
+        
+        // LPFによるエネルギー損失を補正（高域が削られるほどゲインを上げる）
+        // 3kHz付近まで落ちた時に約1.4倍程度になるように調整
+        const filterCompensation = 1.0 + (1.0 - (filterFreq / 20000)) * 0.4;
+        this.wetGain.gain.setTargetAtTime(Math.sin(clamped * Math.PI * 0.5) * 1.2 * filterCompensation, now, rampTime);
         
         // ドライ音もわずかに高域を落として距離感を出す (20kHz -> 8kHz)
         const dryFilterFreq = 20000 * Math.pow(0.4, clamped);
@@ -127,7 +133,7 @@ export class ReverbProcessor {
                     noise += earlyBoost;
                 }
 
-                data[i] = noise * decay * 1.5; // 音量低下を補正
+                data[i] = noise * decay * 1.8; // さらなる濃密さのためにゲインを強化 (1.5 -> 1.8)
             }
         }
         return buffer;
