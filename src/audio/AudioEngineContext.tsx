@@ -185,6 +185,52 @@ interface AudioEngineContextValue {
     setSleepTimer: (timestamp: number | null) => void;
 }
 
+// ===== Helper: Create 60s wav with 10Hz subtle sine wave (Silentium style) =====
+function createSilentAudioBlobUrl(): string {
+    const sampleRate = 8000;
+    const numChannels = 1;
+    const bitsPerSample = 16;
+    const duration = 60; // 60 seconds loop
+    const numSamples = sampleRate * duration;
+    const dataSize = numSamples * numChannels * (bitsPerSample / 8);
+    const headerSize = 44;
+    const fileSize = headerSize + dataSize;
+
+    const buffer = new ArrayBuffer(fileSize);
+    const view = new DataView(buffer);
+
+    const writeString = (v: DataView, offset: number, str: string) => {
+        for (let i = 0; i < str.length; i++) {
+            v.setUint8(offset + i, str.charCodeAt(i));
+        }
+    };
+
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, fileSize - 8, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numChannels * (bitsPerSample / 8), true);
+    view.setUint16(32, numChannels * (bitsPerSample / 8), true);
+    view.setUint16(34, bitsPerSample, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    const frequency = 10;
+    const amplitude = 32; // Inaudible (-60dB) but prevents OS from idling
+    for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+        const sample = Math.round(amplitude * Math.sin(2 * Math.PI * frequency * t));
+        view.setInt16(44 + i * 2, sample, true);
+    }
+
+    const blob = new Blob([buffer], { type: 'audio/wav' });
+    return URL.createObjectURL(blob);
+}
+
 const AudioEngineCtx = createContext<AudioEngineContextValue | null>(null);
 
 // ===== Provider =====
@@ -450,42 +496,46 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
     // === 再生 ===
     const play = useCallback(async () => {
+        // [1] 先にバックグラウンド再生を開始 (ジェスチャー有効期限対策)
+        // ensureAudioContext の async 処理を待つ前に play() を呼ぶことで、ユーザーアクションとして確実に認識させる
+        if (!backgroundAudioRef.current) {
+            const audio = new Audio();
+            audio.src = createSilentAudioBlobUrl();
+            audio.preload = 'auto';
+            audio.setAttribute('playsinline', 'true');
+            audio.loop = true;
+            audio.volume = 0.01;
+            // DOM に追加（Android Chrome でのバックグラウンド維持に必須）
+            audio.style.display = 'none';
+            document.body.appendChild(audio);
+            backgroundAudioRef.current = audio;
+        }
+
+        const audioPlayPromise = backgroundAudioRef.current.play().catch(err => {
+            addLog('warn', `[backgroundAudio] play() 失敗: ${String(err)}`);
+        });
+
+        // [2] AudioContext の準備 (awaitあり)
         const ctx = await ensureAudioContext();
         if (ctx.state === 'suspended') {
             await ctx.resume();
         }
 
-        // バックグラウンド再生維持ハック：ユーザーアクション起因でメディア要素を再生する
-        // iOS/Android 両対応: crossOrigin は data:URI に設定しない（CORSエラー回避）
-        if (!backgroundAudioRef.current) {
-            const audio = new Audio();
-            // データURIではなく、物理的な無音ファイルを指定することで、Androidのメディアセッション認識を安定させる
-            audio.src = `${import.meta.env.BASE_URL}silence.wav`;
-            audio.preload = 'auto';
-            audio.setAttribute('playsinline', 'true');
-            audio.loop = true;
-            audio.volume = 0.01; // Keep this just above zero so Android continues treating it as active media.
-            backgroundAudioRef.current = audio;
-
-            // AudioContext への接続 (Atomsと同様の経路を通す)
-            const source = ctx.createMediaElementSource(audio);
+        // [3] AudioContext への接続 (初回のみ)
+        if (!backgroundSourceRef.current && backgroundAudioRef.current) {
+            const source = ctx.createMediaElementSource(backgroundAudioRef.current);
             const gain = ctx.createGain();
-            gain.gain.value = 1.0; // audio.volume で既に 0.01 になっているので、ここでは 1.0 でよい
-
+            gain.gain.value = 1.0;
             if (reverbProcessorRef.current) {
                 gain.connect(reverbProcessorRef.current.input);
             } else if (fadeControllerRef.current) {
                 gain.connect(fadeControllerRef.current.input);
             }
-            
             backgroundSourceRef.current = source;
             backgroundGainRef.current = gain;
         }
-        try {
-            await backgroundAudioRef.current.play();
-        } catch (err) {
-            addLog('warn', `[backgroundAudio] play() 失敗: ${String(err)}`);
-        }
+
+        await audioPlayPromise;
         const currentState = stateRef.current;
         // タイトルの決定（現在のプリセット名を取得）
         let currentTitle = 'Your Custom Mix';
@@ -961,6 +1011,19 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             dispatch({ type: 'REMOVE_CUSTOM_FILE', payload: id });
         }, []),
     };
+
+    // === クリーンアップ ===
+    useEffect(() => {
+        return () => {
+             if (backgroundAudioRef.current) {
+                 const src = backgroundAudioRef.current.src;
+                 if (src.startsWith('blob:')) {
+                     URL.revokeObjectURL(src);
+                 }
+                 backgroundAudioRef.current.remove();
+             }
+        };
+    }, []);
 
     return (
         <AudioEngineCtx.Provider value={value}>
