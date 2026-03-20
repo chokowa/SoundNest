@@ -35,12 +35,20 @@ export class FadeController {
     fadeIn(): Promise<void> {
         return new Promise((resolve) => {
             const now = this.ctx.currentTime;
-            const currentValue = this.gainNode.gain.value;
-            this.gainNode.gain.cancelScheduledValues(now);
+            const param = this.gainNode.gain;
+            
+            if (typeof param.cancelScheduledValues === 'function') {
+                param.cancelScheduledValues(now);
+            }
+            if (typeof param.setValueAtTime === 'function') {
+                param.setValueAtTime(param.value, now);
+            }
 
-            // 現在の音量から滑らかに開始（急な0への落下を防ぎポップノイズを防止）
-            this.gainNode.gain.setValueAtTime(currentValue, now);
-            this.gainNode.gain.linearRampToValueAtTime(1.0, now + this._duration);
+            if (typeof param.linearRampToValueAtTime === 'function') {
+                param.linearRampToValueAtTime(1.0, now + this._duration);
+            } else {
+                param.value = 1.0;
+            }
 
             setTimeout(resolve, this._duration * 1000);
         });
@@ -53,10 +61,20 @@ export class FadeController {
     fadeOut(): Promise<void> {
         return new Promise((resolve) => {
             const now = this.ctx.currentTime;
-            const currentValue = this.gainNode.gain.value;
-            this.gainNode.gain.cancelScheduledValues(now);
-            this.gainNode.gain.setValueAtTime(currentValue, now);
-            this.gainNode.gain.linearRampToValueAtTime(0.0, now + this._duration);
+            const param = this.gainNode.gain;
+            
+            if (typeof param.cancelScheduledValues === 'function') {
+                param.cancelScheduledValues(now);
+            }
+            if (typeof param.setValueAtTime === 'function') {
+                param.setValueAtTime(param.value, now);
+            }
+
+            if (typeof param.linearRampToValueAtTime === 'function') {
+                param.linearRampToValueAtTime(0.0, now + this._duration);
+            } else {
+                param.value = 0.0;
+            }
             setTimeout(resolve, this._duration * 1000);
         });
     }
@@ -64,15 +82,21 @@ export class FadeController {
     /** 即座にミュート（フェードなし） */
     mute(): void {
         const now = this.ctx.currentTime;
-        this.gainNode.gain.cancelScheduledValues(now);
-        this.gainNode.gain.setValueAtTime(0, now);
+        const param = this.gainNode.gain;
+        if (typeof param.cancelScheduledValues === 'function') {
+            param.cancelScheduledValues(now);
+        }
+        param.value = 0;
     }
 
     /** 即座にアンミュート（フェードなし） */
     unmute(): void {
         const now = this.ctx.currentTime;
-        this.gainNode.gain.cancelScheduledValues(now);
-        this.gainNode.gain.setValueAtTime(1.0, now);
+        const param = this.gainNode.gain;
+        if (typeof param.cancelScheduledValues === 'function') {
+            param.cancelScheduledValues(now);
+        }
+        param.value = 1.0;
     }
 
     /** リソース解放 */

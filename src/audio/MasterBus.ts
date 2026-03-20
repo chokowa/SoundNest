@@ -1,9 +1,6 @@
 /**
  * マスターバス
  * 最終出力段: コンプレッサー → マスターゲイン → アナライザー → 出力
- *
- * DynamicsCompressorNode で低音域のピーク制限を行い、
- * 音割れ（クリッピング）を防止する。
  */
 export class MasterBus {
     private compressor: DynamicsCompressorNode;
@@ -13,24 +10,20 @@ export class MasterBus {
     readonly output: GainNode;
 
     constructor(ctx: AudioContext) {
-        // コンプレッサー: 低音ブースト時の音割れ防止
         this.compressor = ctx.createDynamicsCompressor();
-        this.compressor.threshold.value = -6;   // -6dBで発動開始
-        this.compressor.knee.value = 12;        // ソフトニー
-        this.compressor.ratio.value = 12;       // 強めの圧縮比
-        this.compressor.attack.value = 0.003;   // 3ms (速い応答で瞬間ピークを捕捉)
-        this.compressor.release.value = 0.25;   // 250ms (自然な回復)
+        this.compressor.threshold.value = -6;
+        this.compressor.knee.value = 12;
+        this.compressor.ratio.value = 12;
+        this.compressor.attack.value = 0.003;
+        this.compressor.release.value = 0.25;
 
-        // マスターゲイン
         this.masterGain = ctx.createGain();
-        this.masterGain.gain.value = 0.7; // デフォルト70%
+        this.masterGain.gain.value = 0.7;
 
-        // アナライザー: UIのレベルメーター用
         this.analyser = ctx.createAnalyser();
         this.analyser.fftSize = 256;
         this.analyser.smoothingTimeConstant = 0.8;
 
-        // チェーン: compressor → masterGain → analyser → destination
         this.compressor.connect(this.masterGain);
         this.masterGain.connect(this.analyser);
         this.analyser.connect(ctx.destination);
@@ -43,9 +36,16 @@ export class MasterBus {
     setVolume(volume: number): void {
         const clamped = Math.max(0, Math.min(1, volume));
         const now = this.masterGain.context.currentTime;
-        this.masterGain.gain.cancelScheduledValues(now);
-        this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
-        this.masterGain.gain.setTargetAtTime(clamped, now, 0.05);
+        const param = this.masterGain.gain;
+        
+        if (typeof param.cancelScheduledValues === 'function') {
+            param.cancelScheduledValues(now);
+        }
+        if (typeof param.setTargetAtTime === 'function') {
+            param.setTargetAtTime(clamped, now, 0.05);
+        } else {
+            param.value = clamped;
+        }
     }
 
     /** 現在のレベルメーターデータを取得 */

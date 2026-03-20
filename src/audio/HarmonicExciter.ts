@@ -91,9 +91,14 @@ export class HarmonicExciter {
 
     /** パラメータの急変によるポップノイズを防ぎつつ安全に変更する内部メソッド */
     private safeSetParam(param: AudioParam, targetValue: number, now: number): void {
-        param.cancelScheduledValues(now);
-        param.setValueAtTime(param.value, now);
-        param.setTargetAtTime(targetValue, now, 0.05);
+        if (typeof param.cancelScheduledValues === 'function') {
+            param.cancelScheduledValues(now);
+        }
+        if (typeof param.setTargetAtTime === 'function') {
+            param.setTargetAtTime(targetValue, now, 0.05);
+        } else {
+            param.value = targetValue;
+        }
     }
 
     /** dry/wet ミックス比を設定 (0.0=dry, 1.0=wet) */

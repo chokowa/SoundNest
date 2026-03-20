@@ -36,12 +36,14 @@ export class ReverbProcessor {
         this.dryFilter.type = 'lowpass';
         this.dryFilter.frequency.value = 20000;
 
-        // ステレオ・パナー
-        this.stereoWidener = ctx.createStereoPanner();
+        // ステレオ・パナー (古い環境の未サポート対策)
+        this.stereoWidener = (typeof ctx.createStereoPanner === 'function')
+            ? ctx.createStereoPanner()
+            : (ctx.createGain() as any);
 
         // リバーブ生成
         this.convolver = ctx.createConvolver();
-        this.convolver.buffer = this.createImpulseResponse(2.5, 3.0); 
+        this.convolver.buffer = this.createImpulseResponse(2.5, 3.0);
 
         // 接続フロー
         // [input] --+--> [dryFilter] --> [dryGain] ----------------------> [output]
@@ -73,27 +75,27 @@ export class ReverbProcessor {
 
         // 1. ドライ/ウェット比率 (Equal Power Crossfade)
         // 範囲を 0.5 * PI に広げ、ウェット100%時にウェット信号をフルに抽出する
-        this.dryGain.gain.setTargetAtTime(Math.cos(clamped * Math.PI * 0.5), now, rampTime); 
+        this.dryGain.gain.setTargetAtTime(Math.cos(clamped * Math.PI * 0.5), now, rampTime);
         // ウェット側は空間の広がりによるエネルギー分散を考慮し、少し強めにブースト (1.2倍)
         this.wetGain.gain.setTargetAtTime(Math.sin(clamped * Math.PI * 0.5) * 1.2, now, rampTime);
 
         // 2. 距離による高域減衰 (LPF)
         const filterFreq = 20000 * Math.pow(0.15, clamped);
         this.filter.frequency.setTargetAtTime(filterFreq, now, rampTime);
-        
+
         // LPFによるエネルギー損失を補正（高域が削られるほどゲインを上げる）
         // 3kHz付近まで落ちた時に約1.4倍程度になるように調整
         const filterCompensation = 1.0 + (1.0 - (filterFreq / 20000)) * 0.4;
         this.wetGain.gain.setTargetAtTime(Math.sin(clamped * Math.PI * 0.5) * 1.2 * filterCompensation, now, rampTime);
-        
+
         // ドライ音もわずかに高域を落として距離感を出す (20kHz -> 8kHz)
         const dryFilterFreq = 20000 * Math.pow(0.4, clamped);
         this.dryFilter.frequency.setTargetAtTime(dryFilterFreq, now, rampTime);
 
-        // 3. ステレオ幅
-        // ※ 本来はドライ音自体のステレオ幅を弄る必要があるが、
-        // ここではリバーブ成分の広がりとして強調する
-        this.stereoWidener.pan.setTargetAtTime(0, now, rampTime); // 常にセンター保持（広がりはIRに依存）
+        // 3. ステレオ幅 (サポート時のみ)
+        if (this.stereoWidener && 'pan' in this.stereoWidener) {
+            this.stereoWidener.pan.setTargetAtTime(0, now, rampTime);
+        }
     }
 
     /** 
@@ -103,7 +105,7 @@ export class ReverbProcessor {
         const sampleRate = this.ctx.sampleRate;
         const length = sampleRate * duration;
         const buffer = this.ctx.createBuffer(2, length, sampleRate);
-        
+
         let lastL = 0;
         let lastR = 0;
 
@@ -112,10 +114,10 @@ export class ReverbProcessor {
             for (let i = 0; i < length; i++) {
                 // 1. ベースとなるノイズ (ステレオ独立)
                 let noise = (Math.random() * 2 - 1);
-                
+
                 // 2. 指数関数的な減衰
                 let decay = Math.pow(1 - i / length, decayRate);
-                
+
                 // 3. サウンドマスキング由来のエッセンス: シンプルなローパス（平滑化）による「温かみ」
                 // y[i] = x[i] * 0.3 + y[i-1] * 0.7 
                 // 比率を0.7に上げることで、よりしっとりとした質感にする
