@@ -458,9 +458,9 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         if (!backgroundAudioRef.current) {
             const audio = new Audio();
             // データURIではなく、物理的な無音ファイルを指定することで、Androidのメディアセッション認識を安定させる
-            audio.src = `${import.meta.env.BASE_URL}silence.wav`;
+            audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
             audio.loop = true;
-            audio.volume = 0.01; // Android Chrome 等でメディアセッションを維持するのに必要な最低限の音量
+            audio.volume = 0.001;
             backgroundAudioRef.current = audio;
         }
         backgroundAudioRef.current.play().catch((err) => {
