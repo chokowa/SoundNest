@@ -92,7 +92,6 @@ export function HorizontalSlider({ value, onChange, color, label, description, i
                         width: `${fillPercent}%`,
                         background: color,
                         borderRadius: 3,
-                        transition: 'width 0.15s cubic-bezier(0.25, 0.1, 0.25, 1)',
                     }} />
                 </div>
 
@@ -110,9 +109,8 @@ export function HorizontalSlider({ value, onChange, color, label, description, i
                     color: '#FFFFFF',
                     fontSize: 11,
                     fontWeight: 700,
-                    boxShadow: `0 2px 10px ${color}50`,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
                     zIndex: 1,
-                    transition: 'left 0.15s cubic-bezier(0.25, 0.1, 0.25, 1)',
                 }}>
                     {Math.round(value * 100)}
                 </div>

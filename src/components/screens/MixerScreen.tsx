@@ -172,10 +172,24 @@ export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
                 </div>
             </div>
 
-            {/* 2. SPATIAL DEPTH セクション */}
+            {/* 2. ATMOS MASTER セクション */}
             <div style={{ marginBottom: 24 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: 'var(--text-muted)', fontFamily: 'Inter', marginBottom: 16, paddingLeft: 4 }}>
-                    {t('mixer.spatialDepthHeader', 'SPATIAL DEPTH')}
+                    {t('mixer.atmosMasterHeader', 'ATMOS MASTER')}
+                </div>
+                <HorizontalSlider
+                    value={master.ambientMasterVolume}
+                    onChange={setAmbientMasterVolume}
+                    color="var(--accent-green)"
+                    label="" // ヘッダーと重複するためラベルは空にする
+                    icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>}
+                />
+            </div>
+
+            {/* 3. SPATIAL DEPTH セクション */}
+            <div style={{ marginBottom: 32 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: 'var(--text-muted)', fontFamily: 'Inter', marginBottom: 16, paddingLeft: 4 }}>
+                    {t('mixer.spatialDepthHeader', 'SPATIAL')}
                 </div>
                 <div style={{ position: 'relative' }}>
                     <HorizontalSlider
@@ -183,7 +197,7 @@ export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
                         onChange={setSpatialDepth}
                         color="var(--accent-blue)"
                         label=""
-                        icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>}
+                        icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>}
                     />
                     <div style={{ 
                         display: 'flex', 
@@ -199,20 +213,6 @@ export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
                         <span>{t('mixer.spatialDepthWet', 'Wet')}</span>
                     </div>
                 </div>
-            </div>
-
-            {/* 3. ATMOS MASTER セクション */}
-            <div style={{ marginBottom: 32 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: 'var(--text-muted)', fontFamily: 'Inter', marginBottom: 16, paddingLeft: 4 }}>
-                    {t('mixer.atmosMasterHeader', 'ATMOS MASTER')}
-                </div>
-                <HorizontalSlider
-                    value={master.ambientMasterVolume}
-                    onChange={setAmbientMasterVolume}
-                    color="var(--accent-green)"
-                    label="" // ヘッダーと重複するためラベルは空にする
-                    icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>}
-                />
             </div>
         </div>
     );
