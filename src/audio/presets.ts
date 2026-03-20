@@ -63,6 +63,7 @@ export const BUILT_IN_PRESETS: Preset[] = [
         eq: { lowShelfGain: 0, peakGain: 0, lowpassFrequency: 2000 },
         harmonicExciter: { enabled: false, mix: 0.0 },
         master: { volume: 0.5, ambientMasterVolume: 1.0 },
+        toneId: 'natural',
         builtIn: true,
     },
 ];
