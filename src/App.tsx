@@ -139,6 +139,21 @@ function AppShell() {
             })}
           </div>
         </nav>
+
+        {/* 更新確認用のバージョン表記 */}
+        <div style={{
+          position: 'absolute',
+          bottom: 2,
+          right: 6,
+          fontSize: 9,
+          fontFamily: 'var(--font-mono, monospace)',
+          color: 'var(--text-muted)',
+          opacity: 0.5,
+          pointerEvents: 'none',
+          zIndex: 999
+        }}>
+          v1.0.1
+        </div>
     </div>
   );
 }

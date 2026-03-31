@@ -1006,10 +1006,14 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 }
             }
 
-            // 2. 新しいレイヤーを接続 (既存レイヤーの音量同期は syncAudioParams が担当)
+            // 2. 新しいレイヤーの接続 または 既存レイヤーの再生再開
+            // (既存レイヤーの音量同期は syncAudioParams が担当)
             for (const layer of state.soundscapeLayers) {
-                if (!soundscapeSourcesRef.current.has(layer.id)) {
+                const existingEntry = soundscapeSourcesRef.current.get(layer.id);
+                if (!existingEntry) {
                     connectSoundscapeLayer(layer, state.master.ambientMasterVolume);
+                } else {
+                    existingEntry.element.play();
                 }
             }
         } else {
