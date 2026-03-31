@@ -6,6 +6,11 @@
  * DynamicsCompressorNode を削除し、WaveShaperNode による Soft Clipper に置き換え。
  * Android環境でコンプレッサーの急激なエンベロープ変化が破裂音を引き起こしていたため、
  * 波形を穏やかにサチュレーションさせるアナログ風リミッターで代替する。
+ *
+ * 【v1.0.4 変更】
+ * Bluetoothスピーカーからの不定期な破裂音を包括的に修正。
+ * - DCブロッカーを5Hz/Q=0.707 → 1Hz/Q=0.5 に緩和してリンギングを抑制
+ * - setVolume に setValueAtTime デクリック処理を追加（波形不連続ジャンプの防止）
  */
 export class MasterBus {
     private dcBlocker: BiquadFilterNode;
