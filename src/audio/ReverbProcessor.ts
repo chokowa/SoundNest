@@ -73,28 +73,38 @@ export class ReverbProcessor {
         const now = this.ctx.currentTime;
         const rampTime = 0.2;
 
+        // === デクリック処理用ヘルパー ===
+        // cancelScheduledValues → setValueAtTime → setTargetAtTime の3ステップで
+        // 波形の不連続ジャンプ（クリックノイズ）を防止する
+        const safeRamp = (param: AudioParam, target: number) => {
+            param.cancelScheduledValues(now);
+            param.setValueAtTime(param.value, now);
+            param.setTargetAtTime(target, now, rampTime);
+        };
+
         // 1. ドライ/ウェット比率 (Equal Power Crossfade)
-        // 範囲を 0.5 * PI に広げ、ウェット100%時にウェット信号をフルに抽出する
-        this.dryGain.gain.setTargetAtTime(Math.cos(clamped * Math.PI * 0.5), now, rampTime);
-        // ウェット側は空間の広がりによるエネルギー分散を考慮し、少し強めにブースト (1.2倍)
-        this.wetGain.gain.setTargetAtTime(Math.sin(clamped * Math.PI * 0.5) * 1.2, now, rampTime);
+        safeRamp(this.dryGain.gain, Math.cos(clamped * Math.PI * 0.5));
+
+        // ウェット側: LPFによるエネルギー損失補正を含めた最終値を1回だけ設定
+        // （以前は2回setTargetAtTimeを呼んでおりスケジュール競合の原因だった）
+        const filterFreq = 20000 * Math.pow(0.15, clamped);
+        const filterCompensation = 1.0 + (1.0 - (filterFreq / 20000)) * 0.4;
+        const wetTarget = Math.sin(clamped * Math.PI * 0.5) * 1.2 * filterCompensation;
+        safeRamp(this.wetGain.gain, wetTarget);
 
         // 2. 距離による高域減衰 (LPF)
-        const filterFreq = 20000 * Math.pow(0.15, clamped);
-        this.filter.frequency.setTargetAtTime(filterFreq, now, rampTime);
-
-        // LPFによるエネルギー損失を補正（高域が削られるほどゲインを上げる）
-        // 3kHz付近まで落ちた時に約1.4倍程度になるように調整
-        const filterCompensation = 1.0 + (1.0 - (filterFreq / 20000)) * 0.4;
-        this.wetGain.gain.setTargetAtTime(Math.sin(clamped * Math.PI * 0.5) * 1.2 * filterCompensation, now, rampTime);
+        safeRamp(this.filter.frequency, filterFreq);
 
         // ドライ音もわずかに高域を落として距離感を出す (20kHz -> 8kHz)
         const dryFilterFreq = 20000 * Math.pow(0.4, clamped);
-        this.dryFilter.frequency.setTargetAtTime(dryFilterFreq, now, rampTime);
+        safeRamp(this.dryFilter.frequency, dryFilterFreq);
 
         // 3. ステレオ幅 (サポート時のみ)
         if (this.stereoWidener && 'pan' in this.stereoWidener) {
-            this.stereoWidener.pan.setTargetAtTime(0, now, rampTime);
+            const pan = this.stereoWidener.pan;
+            pan.cancelScheduledValues(now);
+            pan.setValueAtTime(pan.value, now);
+            pan.setTargetAtTime(0, now, rampTime);
         }
     }
 

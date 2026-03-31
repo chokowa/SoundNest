@@ -94,6 +94,10 @@ export class HarmonicExciter {
         if (typeof param.cancelScheduledValues === 'function') {
             param.cancelScheduledValues(now);
         }
+        // デクリック処理: 現在値を起点としてロックし、波形の不連続ジャンプを防止
+        if (typeof param.setValueAtTime === 'function') {
+            param.setValueAtTime(param.value, now);
+        }
         if (typeof param.setTargetAtTime === 'function') {
             param.setTargetAtTime(targetValue, now, 0.05);
         } else {

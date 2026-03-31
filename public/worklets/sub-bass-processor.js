@@ -39,9 +39,12 @@ class SubBassProcessor extends AudioWorkletProcessor {
                 if (!Number.isFinite(last1)) last1 = 0;
                 if (!Number.isFinite(last2)) last2 = 0;
 
-                // ゲイン正規化 + ±1.0 クランプ (突発的ピークによる破裂音を防止)
-                const sample = last2 * 12 * gain;
-                channelData[i] = Math.max(-1, Math.min(1, sample));
+                // ゲイン正規化 + ソフトクランプ (tanhベース)
+                // 12倍増幅のため頻繁にクリップ域に到達する。
+                // ハードクランプ(Math.max/min)では波形がフラット化して
+                // 破裂音を引き起こすため、tanh関数で滑らかに飽和させる
+                const raw = last2 * 12 * gain;
+                channelData[i] = Math.tanh(raw);
             }
             this._last1[channel] = last1;
             this._last2[channel] = last2;

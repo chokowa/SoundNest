@@ -219,7 +219,7 @@ function createSilentAudioBlobUrl(): string {
     writeString(view, 36, 'data');
     view.setUint32(40, dataSize, true);
 
-    const frequency = 10;
+    const frequency = 25; // Bluetoothスピーカーの無音判定（20Hz以下カット）を回避する周波数
     const amplitude = 32; // Inaudible (-60dB) but prevents OS from idling
     for (let i = 0; i < numSamples; i++) {
         const t = i / sampleRate;
@@ -549,8 +549,12 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 if (param) {
                     const now = ctx.currentTime;
                     // B2: メソッド存在確認ガード付きパラメータ変更
+                    // デクリック処理: 現在値を起点としてロックし、波形の不連続ジャンプを防止
                     if (typeof param.cancelScheduledValues === 'function') {
                         param.cancelScheduledValues(now);
+                    }
+                    if (typeof param.setValueAtTime === 'function') {
+                        param.setValueAtTime(param.value, now);
                     }
                     if (typeof param.setTargetAtTime === 'function') {
                         param.setTargetAtTime(gain, now, 0.05);
@@ -583,6 +587,13 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             if (entry) {
                 const effectiveVolume = layer.volume * s.master.ambientMasterVolume;
                 const now = ctx.currentTime;
+                // デクリック処理: 現在値を起点としてロックし、波形の不連続ジャンプを防止
+                if (typeof entry.gain.gain.cancelScheduledValues === 'function') {
+                    entry.gain.gain.cancelScheduledValues(now);
+                }
+                if (typeof entry.gain.gain.setValueAtTime === 'function') {
+                    entry.gain.gain.setValueAtTime(entry.gain.gain.value, now);
+                }
                 if (typeof entry.gain.gain.setTargetAtTime === 'function') {
                     entry.gain.gain.setTargetAtTime(effectiveVolume, now, 0.05);
                 } else {
@@ -867,11 +878,15 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             const now = ctx.currentTime;
 
             // 新しい音源をフェードイン
+            // デクリック処理: cancelScheduledValues後に現在値をロックし、
+            // setValueCurveAtTimeへの移行時の波形ジャンプを防止
             currentInactive.fadeGain.gain.cancelScheduledValues(now);
+            currentInactive.fadeGain.gain.setValueAtTime(currentInactive.fadeGain.gain.value, now);
             currentInactive.fadeGain.gain.setValueCurveAtTime(fadeInCurve, now, crossfadeDuration);
 
             // 古い音源をフェードアウト
             currentActive.fadeGain.gain.cancelScheduledValues(now);
+            currentActive.fadeGain.gain.setValueAtTime(currentActive.fadeGain.gain.value, now);
             currentActive.fadeGain.gain.setValueCurveAtTime(fadeOutCurve, now, crossfadeDuration);
 
             // 役割交代
@@ -923,7 +938,8 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         };
 
         // 初期再生の開始
-        activePlayer.fadeGain.gain.value = 1; // 最初はフェードイン完了状態から始める
+        // 初期再生のデクリック処理: 直接代入ではなくsetValueAtTimeで波形の不連続を防止
+        activePlayer.fadeGain.gain.setValueAtTime(1, ctx.currentTime);
         activePlayer.audio.play().catch(console.error);
 
         // メタデータ（Audioオブジェクトのduration等）がロードされたらスケジューリング開始
@@ -1047,7 +1063,11 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             const entry = soundscapeSourcesRef.current.get(id);
             if (entry && audioCtxRef.current) {
                 const effectiveVolume = (updates.volume ?? 0) * state.master.ambientMasterVolume;
-                entry.gain.gain.setTargetAtTime(effectiveVolume, audioCtxRef.current.currentTime, 0.05);
+                const now = audioCtxRef.current.currentTime;
+                // デクリック処理: 既存スケジュールとの競合を防止し、波形の不連続ジャンプを回避
+                entry.gain.gain.cancelScheduledValues(now);
+                entry.gain.gain.setValueAtTime(entry.gain.gain.value, now);
+                entry.gain.gain.setTargetAtTime(effectiveVolume, now, 0.05);
             }
         }
     }, [state.master.ambientMasterVolume]);

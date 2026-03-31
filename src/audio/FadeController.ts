@@ -79,24 +79,36 @@ export class FadeController {
         });
     }
 
-    /** 即座にミュート（フェードなし） */
+    /** 即座にミュート（フェードなし、5msの微小ランプでデクリック） */
     mute(): void {
         const now = this.ctx.currentTime;
         const param = this.gainNode.gain;
         if (typeof param.cancelScheduledValues === 'function') {
             param.cancelScheduledValues(now);
         }
-        param.value = 0;
+        // デクリック処理: 直接value代入ではなく5msの超短時間ランプで波形の不連続を防止
+        if (typeof param.setValueAtTime === 'function') {
+            param.setValueAtTime(param.value, now);
+            param.linearRampToValueAtTime(0, now + 0.005);
+        } else {
+            param.value = 0;
+        }
     }
 
-    /** 即座にアンミュート（フェードなし） */
+    /** 即座にアンミュート（フェードなし、5msの微小ランプでデクリック） */
     unmute(): void {
         const now = this.ctx.currentTime;
         const param = this.gainNode.gain;
         if (typeof param.cancelScheduledValues === 'function') {
             param.cancelScheduledValues(now);
         }
-        param.value = 1.0;
+        // デクリック処理: 直接value代入ではなく5msの超短時間ランプで波形の不連続を防止
+        if (typeof param.setValueAtTime === 'function') {
+            param.setValueAtTime(param.value, now);
+            param.linearRampToValueAtTime(1.0, now + 0.005);
+        } else {
+            param.value = 1.0;
+        }
     }
 
     /** リソース解放 */

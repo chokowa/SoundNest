@@ -17,10 +17,12 @@ export class MasterBus {
 
     constructor(ctx: AudioContext) {
         // DCブロッカー (低周波オフセットの蓄積を防ぐハイパスフィルター)
+        // 周波数を1Hzまで下げることで、極低域（ブラウンノイズ・サブベース）通過時の
+        // リンギング（波形の跳ね返り）を抑制し、突発的なクリップを防止する
         this.dcBlocker = ctx.createBiquadFilter();
         this.dcBlocker.type = 'highpass';
-        this.dcBlocker.frequency.value = 5.0; // 5Hz未満をカット
-        this.dcBlocker.Q.value = 0.707;       // バターワース特性
+        this.dcBlocker.frequency.value = 1.0; // 1Hz未満をカット（リンギング抑制のため緩和）
+        this.dcBlocker.Q.value = 0.5;         // バターワースより低いQ値でピークを抑制
 
         // マスターゲイン
         this.masterGain = ctx.createGain();
@@ -73,6 +75,10 @@ export class MasterBus {
         
         if (typeof param.cancelScheduledValues === 'function') {
             param.cancelScheduledValues(now);
+        }
+        // デクリック処理: 現在値を起点としてロックし、波形の不連続ジャンプを防止
+        if (typeof param.setValueAtTime === 'function') {
+            param.setValueAtTime(param.value, now);
         }
         if (typeof param.setTargetAtTime === 'function') {
             param.setTargetAtTime(clamped, now, 0.05);

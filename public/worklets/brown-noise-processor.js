@@ -34,9 +34,12 @@ class BrownNoiseProcessor extends AudioWorkletProcessor {
                 // NaN/Infinity 防御 (状態変数が壊れた場合のフェイルセーフ)
                 if (!Number.isFinite(lastOut)) lastOut = 0;
 
-                // ゲイン正規化 + ±1.0 クランプ (突発的ピークによる破裂音を防止)
-                const sample = lastOut * 3.5 * gain;
-                channelData[i] = Math.max(-1, Math.min(1, sample));
+                // ゲイン正規化 + ソフトクランプ (tanhベース)
+                // ハードクランプ(Math.max/min)ではランダムウォークが±1.0境界で
+                // 急激にフラット化し、波形の不連続（破裂音）を引き起こすため、
+                // tanh関数で滑らかに飽和させて音の連続性を保つ
+                const raw = lastOut * 3.5 * gain;
+                channelData[i] = Math.tanh(raw);
             }
             this._lastOut[channel] = lastOut;
         }

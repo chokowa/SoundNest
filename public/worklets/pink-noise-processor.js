@@ -41,7 +41,16 @@ class PinkNoiseProcessor extends AudioWorkletProcessor {
                 const pink = (b[0] + b[1] + b[2] + b[3] + b[4] + b[5] + b[6] + white * 0.5362) * 0.11;
                 b[6] = white * 0.115926;
 
-                // ±1.0 クランプ (突発的ピークによる破裂音を防止)
+                // NaN/Infinity 防御 (状態変数が壊れた場合のフェイルセーフ)
+                // ブラウンノイズ・サブベースには存在する安全弁がピンクノイズに欠落していた
+                if (!Number.isFinite(pink)) {
+                    // 状態変数をリセットして復帰
+                    for (let k = 0; k < 7; k++) b[k] = 0;
+                    channelData[i] = 0;
+                    continue;
+                }
+
+                // ±1.0 クランプ (ピンクノイズは0.11倍でクリップ域に到達しにくいためハードクランプで十分)
                 const sample = pink * gain;
                 channelData[i] = Math.max(-1, Math.min(1, sample));
             }
