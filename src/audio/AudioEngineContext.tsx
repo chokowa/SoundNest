@@ -391,19 +391,16 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 });
             }
 
-            // === AudioContext 自動サスペンド検知・復帰 ===
+            // === AudioContext 状態変化（Android等での破裂音・競合防止） ===
             ctx.onstatechange = () => {
                 const currentCtx = audioCtxRef.current;
                 if (!currentCtx) return;
                 addLog('warn', `[AudioContext] state 変化: ${currentCtx.state}`);
-                if (currentCtx.state === 'suspended' && isPlayingRef.current) {
-                    addLog('warn', '[AudioContext] 再生中に suspended → resume() を試みます');
-                    currentCtx.resume()
-                        .then(() => addLog('info', '[AudioContext] resume() 成功 → 再生継続'))
-                        .catch((err) => {
-                            addLog('error', `[AudioContext] resume() 失敗: ${String(err)}`);
-                        });
-                }
+                
+                // 【重要】Androidのロックや画面回転時にOSがsuspendした直後、JSから即座に
+                // currentCtx.resume() を連打・強行突破すると、ハードウェアスピーカーが競合パニックを起こし
+                // 「強烈な破裂音」が鳴るため、強制的な即時再開は行わない設計に変更。
+                // (バックグラウンドでの再生維持は、Foreground Serviceと維持用Audio要素に完全に委ねます)
             };
 
             const hasWorkletSupport = !!ctx.audioWorklet;
