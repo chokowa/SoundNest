@@ -41,7 +41,9 @@ class PinkNoiseProcessor extends AudioWorkletProcessor {
                 const pink = (b[0] + b[1] + b[2] + b[3] + b[4] + b[5] + b[6] + white * 0.5362) * 0.11;
                 b[6] = white * 0.115926;
 
-                channelData[i] = pink * gain;
+                // ±1.0 クランプ (突発的ピークによる破裂音を防止)
+                const sample = pink * gain;
+                channelData[i] = Math.max(-1, Math.min(1, sample));
             }
         }
 

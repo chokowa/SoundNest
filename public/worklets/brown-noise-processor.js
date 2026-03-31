@@ -31,8 +31,12 @@ class BrownNoiseProcessor extends AudioWorkletProcessor {
                 // これにより低周波が支配的な1/f²特性を実現
                 lastOut = (lastOut + (0.02 * white)) / 1.02;
 
-                // ゲイン正規化（ブラウンノイズの振幅は小さくなるため3.5倍してレベルを合わせる）
-                channelData[i] = lastOut * 3.5 * gain;
+                // NaN/Infinity 防御 (状態変数が壊れた場合のフェイルセーフ)
+                if (!Number.isFinite(lastOut)) lastOut = 0;
+
+                // ゲイン正規化 + ±1.0 クランプ (突発的ピークによる破裂音を防止)
+                const sample = lastOut * 3.5 * gain;
+                channelData[i] = Math.max(-1, Math.min(1, sample));
             }
             this._lastOut[channel] = lastOut;
         }

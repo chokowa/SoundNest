@@ -35,8 +35,13 @@ class SubBassProcessor extends AudioWorkletProcessor {
                 // 二段目: さらに平滑化してサブバス帯域に絞り込む
                 last2 = (last2 + (0.005 * last1)) / 1.005;
 
-                // ゲイン正規化（二重平滑で振幅が非常に小さくなるため12倍で補正）
-                channelData[i] = last2 * 12 * gain;
+                // NaN/Infinity 防御 (状態変数が壊れた場合のフェイルセーフ)
+                if (!Number.isFinite(last1)) last1 = 0;
+                if (!Number.isFinite(last2)) last2 = 0;
+
+                // ゲイン正規化 + ±1.0 クランプ (突発的ピークによる破裂音を防止)
+                const sample = last2 * 12 * gain;
+                channelData[i] = Math.max(-1, Math.min(1, sample));
             }
             this._last1[channel] = last1;
             this._last2[channel] = last2;

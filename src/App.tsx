@@ -152,7 +152,7 @@ function AppShell() {
           pointerEvents: 'none',
           zIndex: 999
         }}>
-          v1.0.2
+          v1.0.3
         </div>
     </div>
   );

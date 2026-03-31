@@ -17,7 +17,9 @@ class WhiteNoiseProcessor extends AudioWorkletProcessor {
             const channelData = output[channel];
             for (let i = 0; i < channelData.length; i++) {
                 // チャンネルごとに独立した -1 ～ +1 の一様分布乱数
-                channelData[i] = (Math.random() * 2 - 1) * gain;
+                // ±1.0 クランプ付き (安全装置)
+                const sample = (Math.random() * 2 - 1) * gain;
+                channelData[i] = Math.max(-1, Math.min(1, sample));
             }
         }
 

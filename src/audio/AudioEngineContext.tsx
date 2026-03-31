@@ -381,7 +381,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 throw new Error('Web Audio API is not supported');
             }
 
-            ctx = new AudioContextClass() as AudioContext;
+            ctx = new AudioContextClass({ latencyHint: 'playback' }) as AudioContext;
             addLog('info', `[AudioContext] 作成完了 (初期状態: ${ctx.state})`);
 
             // Android のジェスチャー有効期限対策
