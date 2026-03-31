@@ -30,7 +30,8 @@ export class MasterBus {
         // tanh カーブにより、±1.0 付近で滑らかに飽和させる
         // ハードクリップ（バリッという歪み）を防ぎ、穏やかなサチュレーション（暖かみ）に変換する
         this.softClipper = ctx.createWaveShaper();
-        this.softClipper.curve = MasterBus.createSoftClipCurve(4096) as Float32Array;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (this.softClipper as any).curve = MasterBus.createSoftClipCurve(4096);
         this.softClipper.oversample = '2x'; // エイリアシングアーティファクトの低減
 
         // アナライザー
