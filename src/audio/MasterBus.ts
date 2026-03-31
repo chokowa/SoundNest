@@ -3,13 +3,20 @@
  * 最終出力段: コンプレッサー → マスターゲイン → アナライザー → 出力
  */
 export class MasterBus {
+    private dcBlocker: BiquadFilterNode;
     private compressor: DynamicsCompressorNode;
     private masterGain: GainNode;
     private analyser: AnalyserNode;
-    readonly input: DynamicsCompressorNode;
+    readonly input: AudioNode;
     readonly output: GainNode;
 
     constructor(ctx: AudioContext) {
+        // DCブロッカー (低周波オフセットの蓄積を防ぐハイパスフィルター)
+        this.dcBlocker = ctx.createBiquadFilter();
+        this.dcBlocker.type = 'highpass';
+        this.dcBlocker.frequency.value = 5.0; // 5Hz未満をカット
+        this.dcBlocker.Q.value = 0.707;       // バターワース特性
+
         this.compressor = ctx.createDynamicsCompressor();
         this.compressor.threshold.value = -6;
         this.compressor.knee.value = 12;
@@ -24,11 +31,13 @@ export class MasterBus {
         this.analyser.fftSize = 256;
         this.analyser.smoothingTimeConstant = 0.8;
 
+        // ルーティング: 入力 -> DCブロッカー -> コンプレッサー -> マスターゲイン -> アナライザー -> 出力
+        this.dcBlocker.connect(this.compressor);
         this.compressor.connect(this.masterGain);
         this.masterGain.connect(this.analyser);
         this.analyser.connect(ctx.destination);
 
-        this.input = this.compressor;
+        this.input = this.dcBlocker;
         this.output = this.masterGain;
     }
 
@@ -74,6 +83,7 @@ export class MasterBus {
 
     /** リソース解放 */
     dispose(): void {
+        this.dcBlocker.disconnect();
         this.compressor.disconnect();
         this.masterGain.disconnect();
         this.analyser.disconnect();
