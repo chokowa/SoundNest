@@ -626,11 +626,20 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 flat: 0.0,
                 mild: 0.15,
                 wave: 0.35,
-                deep: 0.65
+                deep: 0.80 // DEEPは最低音量を20%まで落としダイナミックに
             };
-            const targetDepth = depthMap[s.organicMode] || 0.0;
+            const depth = depthMap[s.organicMode] || 0.0;
+            
+            // OscillatorNodeは -1.0 〜 +1.0 で揺れる。
+            // これがマイナスに振り切れて Gain がマイナスになると、位相反転により「逆に音量が上がってしまう（W型のバウンスが発生する）」
+            // そこで振幅幅（lfoAmplitude）を深さの半分にし、ベースゲインを(1.0 - 振幅幅)に設定する。
+            // これにより 最大音量(1.0) 〜 最小音量(1.0 - depth) の間で綺麗なU字の波を描く。
+            const lfoAmplitude = depth / 2.0;
+            const baseGain = 1.0 - lfoAmplitude;
+            
             const now = ctx.currentTime;
             
+            // LFOが揺らす幅を設定
             const gainParam = organicGainRef.current.gain;
             if (typeof gainParam.cancelScheduledValues === 'function') {
                 gainParam.cancelScheduledValues(now);
@@ -639,12 +648,12 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 gainParam.setValueAtTime(gainParam.value, now);
             }
             if (typeof gainParam.setTargetAtTime === 'function') {
-                gainParam.setTargetAtTime(targetDepth, now, 0.1);
+                gainParam.setTargetAtTime(lfoAmplitude, now, 0.1);
             } else {
-                gainParam.value = targetDepth;
+                gainParam.value = lfoAmplitude;
             }
             
-            const baseGain = 1.0 - targetDepth;
+            // ノイズのベースとなるゲインを設定
             const mixerGainParam = mixerGainRef.current?.gain;
             if (mixerGainParam) {
                 if (typeof mixerGainParam.cancelScheduledValues === 'function') {
