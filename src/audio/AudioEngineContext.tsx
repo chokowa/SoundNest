@@ -331,7 +331,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
     const mixerGainRef = useRef<GainNode | null>(null);
     const organicLfoRef = useRef<OscillatorNode | null>(null);
     const organicGainRef = useRef<GainNode | null>(null);
-    const organicLfoTimerRef = useRef<number | NodeJS.Timeout | null>(null);
+    const organicLfoTimerRef = useRef<number | ReturnType<typeof setTimeout> | null>(null);
     const soundscapeSourcesRef = useRef<Map<string, { source: MediaElementAudioSourceNode; gain: GainNode; element: HTMLAudioElement }>>(new Map());
 
     // === バックグラウンド再生維持用・KeepAlive用 ===
