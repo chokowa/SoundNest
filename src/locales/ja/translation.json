@@ -49,10 +49,10 @@
         "organicHeader": "オーガニック (揺らぎ)",
         "organicDesc": "ノイズに自然なリズムを加え、長時間の聴取による疲労を抑えます。",
         "organic": {
-            "flat": "FLAT",
-            "mild": "MILD",
-            "wave": "WAVE",
-            "deep": "DEEP"
+            "flat": "フラット",
+            "mild": "マイルド",
+            "wave": "ウェーブ",
+            "deep": "ディープ"
         },
         "yourCustomMix": "Your custom mix",
         "saveAsPreset": "Save as Preset",
