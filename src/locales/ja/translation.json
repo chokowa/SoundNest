@@ -46,6 +46,14 @@
             "clear": "低域の濁りを取り、スッキリとした音にします。",
             "natural": "音響処理を無効化し、本来の音色で再生します。"
         },
+        "organicHeader": "オーガニック (揺らぎ)",
+        "organicDesc": "ノイズに自然なリズムを加え、長時間の聴取による疲労を抑えます。",
+        "organic": {
+            "flat": "FLAT",
+            "mild": "MILD",
+            "wave": "WAVE",
+            "deep": "DEEP"
+        },
         "yourCustomMix": "Your custom mix",
         "saveAsPreset": "Save as Preset",
         "savePresetTitle": "Save Preset",

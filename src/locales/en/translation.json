@@ -46,6 +46,14 @@
             "clear": "Removes low muddiness to create a crisp and clear sound.",
             "natural": "Disables processing to play the original, natural sound."
         },
+        "organicHeader": "ORGANIC (FLUCTUATION)",
+        "organicDesc": "Adds natural rhythm to noise to reduce ear fatigue during long listening sessions.",
+        "organic": {
+            "flat": "FLAT",
+            "mild": "MILD",
+            "wave": "WAVE",
+            "deep": "DEEP"
+        },
         "yourCustomMix": "Your custom mix",
         "saveAsPreset": "Save as Preset",
         "savePresetTitle": "Save Preset",

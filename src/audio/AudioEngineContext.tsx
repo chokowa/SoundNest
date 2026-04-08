@@ -20,6 +20,7 @@ import type {
     CustomFileEntry,
     Preset,
     ToneId,
+    OrganicMode,
 } from '../types/audio';
 import { TONE_SETTINGS } from './tones';
 import { FilterChain } from './FilterChain';
@@ -53,6 +54,7 @@ const initialState: AudioEngineState = {
     customFiles: [],
     sleepTimerTarget: null,
     spatialDepth: 0.0,
+    organicMode: 'flat',
 };
 
 // ===== Reducer =====
@@ -149,6 +151,8 @@ function audioReducer(state: AudioEngineState, action: AudioEngineAction): Audio
             return { ...state, sleepTimerTarget: action.payload };
         case 'SET_SPATIAL_DEPTH':
             return { ...state, spatialDepth: action.payload };
+        case 'SET_ORGANIC_MODE':
+            return { ...state, organicMode: action.payload };
         case 'LOAD_STATE':
             return { ...action.payload, customFiles: action.payload.customFiles ?? [], sleepTimerTarget: null };
         default:
@@ -170,6 +174,7 @@ interface AudioEngineContextValue {
     setMaster: (master: Partial<MasterSettings>) => void;
     setAmbientMasterVolume: (volume: number) => void;
     setSpatialDepth: (depth: number) => void;
+    setOrganicMode: (mode: OrganicMode) => void;
     applyPreset: (preset: Preset) => void;
     addSoundscapeFromFile: (file: File) => void;
     addSoundscapeLayer: (layer: SoundscapeLayer) => void;
@@ -324,6 +329,9 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
     const masterBusRef = useRef<MasterBus | null>(null);
     const fadeControllerRef = useRef<FadeController | null>(null);
     const mixerGainRef = useRef<GainNode | null>(null);
+    const organicLfoRef = useRef<OscillatorNode | null>(null);
+    const organicGainRef = useRef<GainNode | null>(null);
+    const organicLfoTimerRef = useRef<number | NodeJS.Timeout | null>(null);
     const soundscapeSourcesRef = useRef<Map<string, { source: MediaElementAudioSourceNode; gain: GainNode; element: HTMLAudioElement }>>(new Map());
 
     // === バックグラウンド再生維持用・KeepAlive用 ===
@@ -425,7 +433,34 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
             // ミキサーゲインノード
             const mixerGain = ctx.createGain();
+            mixerGain.gain.value = 1.0;
             mixerGainRef.current = mixerGain;
+
+            // オーガニックモード用 LFO
+            const organicLfo = ctx.createOscillator();
+            organicLfo.type = 'sine';
+            organicLfo.frequency.value = 0.08; // 12.5秒周期
+            organicLfoRef.current = organicLfo;
+
+            const organicGain = ctx.createGain();
+            organicGain.gain.value = 0; // デフォルトはFLAT
+            organicGainRef.current = organicGain;
+
+            organicLfo.connect(organicGain);
+            organicGain.connect(mixerGain.gain);
+            organicLfo.start();
+
+            // ランダム揺らぎタイマー
+            const randomizeLfo = () => {
+                if (organicLfoRef.current && audioCtxRef.current) {
+                    const ctxNow = audioCtxRef.current.currentTime;
+                    // 0.07Hz ~ 0.09Hz 程度に揺らす
+                    const nextFreq = 0.07 + Math.random() * 0.02;
+                    organicLfoRef.current.frequency.setTargetAtTime(nextFreq, ctxNow, 2.0);
+                    organicLfoTimerRef.current = setTimeout(randomizeLfo, 12000);
+                }
+            };
+            randomizeLfo();
 
             // フィルタ・エフェクトチェーン
             const filterChain = new FilterChain(ctx);
@@ -518,6 +553,10 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
             audioCtxRef.current = null;
             // 各種 ref もリセット
             mixerGainRef.current = null;
+            if (organicLfoTimerRef.current) clearTimeout(organicLfoTimerRef.current);
+            organicLfoTimerRef.current = null;
+            organicLfoRef.current = null;
+            organicGainRef.current = null;
             filterChainRef.current = null;
             harmonicExciterRef.current = null;
             fadeControllerRef.current = null;
@@ -580,6 +619,47 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
         // 空間深度
         reverbProcessorRef.current?.setDepth(s.spatialDepth);
+
+        // オーガニックモード（揺らぎの深さ）
+        if (organicGainRef.current) {
+            const depthMap: Record<OrganicMode, number> = {
+                flat: 0.0,
+                mild: 0.15,
+                wave: 0.35,
+                deep: 0.65
+            };
+            const targetDepth = depthMap[s.organicMode] || 0.0;
+            const now = ctx.currentTime;
+            
+            const gainParam = organicGainRef.current.gain;
+            if (typeof gainParam.cancelScheduledValues === 'function') {
+                gainParam.cancelScheduledValues(now);
+            }
+            if (typeof gainParam.setValueAtTime === 'function') {
+                gainParam.setValueAtTime(gainParam.value, now);
+            }
+            if (typeof gainParam.setTargetAtTime === 'function') {
+                gainParam.setTargetAtTime(targetDepth, now, 0.1);
+            } else {
+                gainParam.value = targetDepth;
+            }
+            
+            const baseGain = 1.0 - targetDepth;
+            const mixerGainParam = mixerGainRef.current?.gain;
+            if (mixerGainParam) {
+                if (typeof mixerGainParam.cancelScheduledValues === 'function') {
+                    mixerGainParam.cancelScheduledValues(now);
+                }
+                if (typeof mixerGainParam.setValueAtTime === 'function') {
+                    mixerGainParam.setValueAtTime(mixerGainParam.value, now);
+                }
+                if (typeof mixerGainParam.setTargetAtTime === 'function') {
+                    mixerGainParam.setTargetAtTime(baseGain, now, 0.1);
+                } else {
+                    mixerGainParam.value = baseGain;
+                }
+            }
+        }
 
         // ATMOS マスター (環境音全体)
         for (const layer of s.soundscapeLayers) {
@@ -1141,6 +1221,9 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         }, []),
         setSpatialDepth: useCallback((depth: number) => {
             dispatch({ type: 'SET_SPATIAL_DEPTH', payload: depth });
+        }, []),
+        setOrganicMode: useCallback((mode: OrganicMode) => {
+            dispatch({ type: 'SET_ORGANIC_MODE', payload: mode });
         }, []),
         addCustomFile: useCallback((entry: CustomFileEntry) => {
             dispatch({ type: 'ADD_CUSTOM_FILE', payload: entry });

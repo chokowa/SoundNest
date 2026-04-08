@@ -25,9 +25,10 @@ export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
         setTone, 
         setAmbientMasterVolume,
         setSpatialDepth,
+        setOrganicMode,
         presets,
     } = useAudioEngine();
-    const { blend, activePresetId, activeToneId, master } = state;
+    const { blend, activePresetId, activeToneId, organicMode, master } = state;
 
     const toggleLanguage = useCallback(() => {
         const nextLang = i18n.language.startsWith('ja') ? 'en' : 'ja';
@@ -170,6 +171,69 @@ export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
                         {activeToneId && t(`mixer.tonedesc.${activeToneId}`)}
                     </div>
                 </div>
+
+                {/* ORGANIC 連結エリア */}
+                <div style={{ 
+                    marginTop: 8, 
+                    paddingTop: 20, 
+                    borderTop: '1px solid var(--border-default)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12
+                }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: 'var(--text-muted)', fontFamily: 'Inter', alignSelf: 'center' }}>
+                        {t('mixer.organicHeader', 'ORGANIC (FLUCTUATION)')}
+                    </div>
+                    <div style={{
+                        display: 'flex',
+                        background: 'var(--bg-muted)',
+                        borderRadius: 20,
+                        padding: 4,
+                        gap: 2,
+                    }}>
+                        {(['flat', 'mild', 'wave', 'deep'] as const).map(mode => {
+                            const isActive = organicMode === mode;
+                            return (
+                                <button
+                                    key={mode}
+                                    onClick={() => setOrganicMode(mode)}
+                                    style={{
+                                        flex: 1,
+                                        height: 32,
+                                        borderRadius: 16,
+                                        border: 'none',
+                                        background: isActive ? 'var(--bg-card)' : 'transparent',
+                                        color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                        fontWeight: isActive ? 600 : 400,
+                                        fontSize: 11,
+                                        fontFamily: 'Inter',
+                                        boxShadow: isActive ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                                        transition: 'all 0.2s',
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    {t(`mixer.organic.${mode}`, mode.toUpperCase())}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    
+                    {/* 波形プレビューと説明文 */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 4 }}>
+                        <OrganicWavePreview mode={organicMode} />
+                        <div style={{
+                            fontSize: 12,
+                            color: 'var(--text-secondary)',
+                            fontFamily: 'Inter',
+                            textAlign: 'center',
+                            marginTop: 12,
+                            padding: '0 8px',
+                            minHeight: 18,
+                        }}>
+                            {t('mixer.organicDesc', 'ノイズに自然なリズムを加え、長時間の聴取による疲労を抑えます。')}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* 2. ATMOS MASTER セクション */}
@@ -216,5 +280,37 @@ export function MixerScreen({ isDark, onToggleDark }: MixerScreenProps) {
                 </div>
             </div>
         </div>
+    );
+}
+
+function OrganicWavePreview({ mode }: { mode: 'flat' | 'mild' | 'wave' | 'deep' }) {
+    const amplitudeMap = {
+        flat: 0,
+        mild: 4,
+        wave: 12,
+        deep: 24
+    };
+    const amp = amplitudeMap[mode];
+
+    return (
+        <svg 
+            width="100%" 
+            height="40" 
+            viewBox="0 0 200 40" 
+            preserveAspectRatio="none"
+            style={{ 
+                opacity: 0.4, 
+                maxWidth: 240,
+            }}
+        >
+            <path 
+                d={`M 0,20 Q 50,${20 - amp} 100,20 T 200,20`} 
+                fill="none" 
+                stroke="var(--text-secondary)" 
+                strokeWidth="2" 
+                strokeLinecap="round"
+                style={{ transition: 'd 0.4s ease-in-out' }}
+            />
+        </svg>
     );
 }

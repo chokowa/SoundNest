@@ -1,5 +1,8 @@
 // ===== オーディオエンジン型定義 =====
 
+/** ノイズ揺らぎ（Organic）モード */
+export type OrganicMode = 'flat' | 'mild' | 'wave' | 'deep';
+
 /** ノイズの種類 */
 export type NoiseType = 'pink' | 'brown' | 'white' | 'sub';
 
@@ -131,6 +134,8 @@ export interface AudioEngineState {
     sleepTimerTarget?: number | null;
     /** 空間深度（マット 0.0 ～ ウェット 1.0） */
     spatialDepth: number;
+    /** ノイズ揺らぎモード */
+    organicMode: OrganicMode;
 }
 
 /** オーディオエンジンアクション */
@@ -153,4 +158,5 @@ export type AudioEngineAction =
     | { type: 'SET_AMBIENT_MASTER_VOLUME'; payload: number }
     | { type: 'SET_SPATIAL_DEPTH'; payload: number }
     | { type: 'CLEAR_ACTIVE_PRESET'; payload: string }
-    | { type: 'SET_SLEEP_TIMER'; payload: number | null };
+    | { type: 'SET_SLEEP_TIMER'; payload: number | null }
+    | { type: 'SET_ORGANIC_MODE'; payload: OrganicMode };
