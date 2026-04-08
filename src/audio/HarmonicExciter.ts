@@ -49,7 +49,8 @@ export class HarmonicExciter {
         this.waveshaper = ctx.createWaveShaper();
         // @ts-expect-error Float32Arrayの型バージョンの差異を無視
         this.waveshaper.curve = this.createSaturationCurve(400);
-        this.waveshaper.oversample = '4x';
+        // oversample は削除: 入力が40-200Hzに制限されているため、倍音がナイキスト周波数に
+        // 到達せずエイリアシングは発生しない。不要な計算負荷を排除しバッファアンダーランを軽減。
 
         // ブーストEQ: 生成された倍音帯域(100-200Hz)を強調
         this.boostEQ = ctx.createBiquadFilter();

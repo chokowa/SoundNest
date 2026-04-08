@@ -39,7 +39,8 @@ export class MasterBus {
         this.softClipper = ctx.createWaveShaper();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (this.softClipper as any).curve = MasterBus.createSoftClipCurve(4096);
-        this.softClipper.oversample = '2x'; // エイリアシングアーティファクトの低減
+        // oversample は削除: ノイズ信号への歪みではエイリアシングが知覚不能。
+        // 不要な計算負荷を排除しバッファアンダーランを軽減。
 
         // アナライザー
         this.analyser = ctx.createAnalyser();
