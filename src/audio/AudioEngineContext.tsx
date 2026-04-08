@@ -248,7 +248,7 @@ function createLegacyNoiseBuffer(ctx: AudioContext, type: 'white' | 'pink' | 'br
         if (type === 'white') {
             for (let i = 0; i < numSamples; i++) data[i] = Math.random() * 2 - 1;
         } else if (type === 'pink') {
-            let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+            let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
             for (let i = 0; i < numSamples; i++) {
                 const white = Math.random() * 2 - 1;
                 b0 = 0.99886 * b0 + white * 0.0555179;
@@ -404,7 +404,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
                 const currentCtx = audioCtxRef.current;
                 if (!currentCtx) return;
                 addLog('warn', `[AudioContext] state 変化: ${currentCtx.state}`);
-                
+
                 // 【重要】Androidのロックや画面回転時にOSがsuspendした直後、JSから即座に
                 // currentCtx.resume() を連打・強行突破すると、ハードウェアスピーカーが競合パニックを起こし
                 // 「強烈な破裂音」が鳴るため、強制的な即時再開は行わない設計に変更。
@@ -548,7 +548,7 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
         } catch (err) {
             addLog('error', `[ensureAudioContext] 致命的エラー: ${String(err)}`);
             if (ctx) {
-                ctx.close().catch(() => {});
+                ctx.close().catch(() => { });
             }
             audioCtxRef.current = null;
             // 各種 ref もリセット
@@ -570,129 +570,129 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
     // === オーディオパラメータの同期 ===
     const syncAudioParams = useCallback((s: AudioEngineState) => {
-      try {
-        const ctx = audioCtxRef.current;
-        if (!ctx) return; // B1: null ガード
+        try {
+            const ctx = audioCtxRef.current;
+            if (!ctx) return; // B1: null ガード
 
-        // ノイズブレンド（4チャンネル）
-        const blendMap: Record<string, number> = {
-            pink: s.blend.pink,
-            brown: s.blend.brown,
-            white: s.blend.white ?? 0,
-            sub: s.blend.sub ?? 0,
-        };
-        for (const [type, gain] of Object.entries(blendMap)) {
-            const node = workletNodesRef.current.get(type);
-            if (node) {
-                const param = node.parameters.get('gain');
-                if (param) {
-                    const now = ctx.currentTime;
-                    // B2: メソッド存在確認ガード付きパラメータ変更
-                    // デクリック処理: 現在値を起点としてロックし、波形の不連続ジャンプを防止
-                    if (typeof param.cancelScheduledValues === 'function') {
-                        param.cancelScheduledValues(now);
-                    }
-                    if (typeof param.setValueAtTime === 'function') {
-                        param.setValueAtTime(param.value, now);
-                    }
-                    if (typeof param.setTargetAtTime === 'function') {
-                        param.setTargetAtTime(gain, now, 0.05);
-                    } else {
-                        param.value = gain;
-                    }
-                }
-            }
-        }
-
-        // EQ
-        filterChainRef.current?.setAll(s.eq.lowShelfGain, s.eq.peakGain, s.eq.lowpassFrequency);
-
-        // ハーモニックエキサイター
-        harmonicExciterRef.current?.setEnabled(s.harmonicExciter.enabled);
-        harmonicExciterRef.current?.setMix(s.harmonicExciter.mix);
-
-        // フェード
-        fadeControllerRef.current?.setDuration(s.fade.duration);
-
-        // マスター
-        masterBusRef.current?.setVolume(s.master.volume);
-
-        // 空間深度
-        reverbProcessorRef.current?.setDepth(s.spatialDepth);
-
-        // オーガニックモード（揺らぎの深さ）
-        if (organicGainRef.current) {
-            const depthMap: Record<OrganicMode, number> = {
-                flat: 0.0,
-                mild: 0.15,
-                wave: 0.35,
-                deep: 0.80 // DEEPは最低音量を20%まで落としダイナミックに
+            // ノイズブレンド（4チャンネル）
+            const blendMap: Record<string, number> = {
+                pink: s.blend.pink,
+                brown: s.blend.brown,
+                white: s.blend.white ?? 0,
+                sub: s.blend.sub ?? 0,
             };
-            const depth = depthMap[s.organicMode] || 0.0;
-            
-            // OscillatorNodeは -1.0 〜 +1.0 で揺れる。
-            // これがマイナスに振り切れて Gain がマイナスになると、位相反転により「逆に音量が上がってしまう（W型のバウンスが発生する）」
-            // そこで振幅幅（lfoAmplitude）を深さの半分にし、ベースゲインを(1.0 - 振幅幅)に設定する。
-            // これにより 最大音量(1.0) 〜 最小音量(1.0 - depth) の間で綺麗なU字の波を描く。
-            const lfoAmplitude = depth / 2.0;
-            const baseGain = 1.0 - lfoAmplitude;
-            
-            const now = ctx.currentTime;
-            
-            // LFOが揺らす幅を設定
-            const gainParam = organicGainRef.current.gain;
-            if (typeof gainParam.cancelScheduledValues === 'function') {
-                gainParam.cancelScheduledValues(now);
-            }
-            if (typeof gainParam.setValueAtTime === 'function') {
-                gainParam.setValueAtTime(gainParam.value, now);
-            }
-            if (typeof gainParam.setTargetAtTime === 'function') {
-                gainParam.setTargetAtTime(lfoAmplitude, now, 0.1);
-            } else {
-                gainParam.value = lfoAmplitude;
-            }
-            
-            // ノイズのベースとなるゲインを設定
-            const mixerGainParam = mixerGainRef.current?.gain;
-            if (mixerGainParam) {
-                if (typeof mixerGainParam.cancelScheduledValues === 'function') {
-                    mixerGainParam.cancelScheduledValues(now);
-                }
-                if (typeof mixerGainParam.setValueAtTime === 'function') {
-                    mixerGainParam.setValueAtTime(mixerGainParam.value, now);
-                }
-                if (typeof mixerGainParam.setTargetAtTime === 'function') {
-                    mixerGainParam.setTargetAtTime(baseGain, now, 0.1);
-                } else {
-                    mixerGainParam.value = baseGain;
+            for (const [type, gain] of Object.entries(blendMap)) {
+                const node = workletNodesRef.current.get(type);
+                if (node) {
+                    const param = node.parameters.get('gain');
+                    if (param) {
+                        const now = ctx.currentTime;
+                        // B2: メソッド存在確認ガード付きパラメータ変更
+                        // デクリック処理: 現在値を起点としてロックし、波形の不連続ジャンプを防止
+                        if (typeof param.cancelScheduledValues === 'function') {
+                            param.cancelScheduledValues(now);
+                        }
+                        if (typeof param.setValueAtTime === 'function') {
+                            param.setValueAtTime(param.value, now);
+                        }
+                        if (typeof param.setTargetAtTime === 'function') {
+                            param.setTargetAtTime(gain, now, 0.05);
+                        } else {
+                            param.value = gain;
+                        }
+                    }
                 }
             }
-        }
 
-        // ATMOS マスター (環境音全体)
-        for (const layer of s.soundscapeLayers) {
-            const entry = soundscapeSourcesRef.current.get(layer.id);
-            if (entry) {
-                const effectiveVolume = layer.volume * s.master.ambientMasterVolume;
+            // EQ
+            filterChainRef.current?.setAll(s.eq.lowShelfGain, s.eq.peakGain, s.eq.lowpassFrequency);
+
+            // ハーモニックエキサイター
+            harmonicExciterRef.current?.setEnabled(s.harmonicExciter.enabled);
+            harmonicExciterRef.current?.setMix(s.harmonicExciter.mix);
+
+            // フェード
+            fadeControllerRef.current?.setDuration(s.fade.duration);
+
+            // マスター
+            masterBusRef.current?.setVolume(s.master.volume);
+
+            // 空間深度
+            reverbProcessorRef.current?.setDepth(s.spatialDepth);
+
+            // オーガニックモード（揺らぎの深さ）
+            if (organicGainRef.current) {
+                const depthMap: Record<OrganicMode, number> = {
+                    flat: 0.0,
+                    mild: 0.15,
+                    wave: 0.35,
+                    deep: 0.80 // DEEPは最低音量を20%まで落としダイナミックに
+                };
+                const depth = depthMap[s.organicMode] || 0.0;
+
+                // OscillatorNodeは -1.0 〜 +1.0 で揺れる。
+                // これがマイナスに振り切れて Gain がマイナスになると、位相反転により「逆に音量が上がってしまう（W型のバウンスが発生する）」
+                // そこで振幅幅（lfoAmplitude）を深さの半分にし、ベースゲインを(1.0 - 振幅幅)に設定する。
+                // これにより 最大音量(1.0) 〜 最小音量(1.0 - depth) の間で綺麗なU字の波を描く。
+                const lfoAmplitude = depth / 2.0;
+                const baseGain = 1.0 - lfoAmplitude;
+
                 const now = ctx.currentTime;
-                // デクリック処理: 現在値を起点としてロックし、波形の不連続ジャンプを防止
-                if (typeof entry.gain.gain.cancelScheduledValues === 'function') {
-                    entry.gain.gain.cancelScheduledValues(now);
+
+                // LFOが揺らす幅を設定
+                const gainParam = organicGainRef.current.gain;
+                if (typeof gainParam.cancelScheduledValues === 'function') {
+                    gainParam.cancelScheduledValues(now);
                 }
-                if (typeof entry.gain.gain.setValueAtTime === 'function') {
-                    entry.gain.gain.setValueAtTime(entry.gain.gain.value, now);
+                if (typeof gainParam.setValueAtTime === 'function') {
+                    gainParam.setValueAtTime(gainParam.value, now);
                 }
-                if (typeof entry.gain.gain.setTargetAtTime === 'function') {
-                    entry.gain.gain.setTargetAtTime(effectiveVolume, now, 0.05);
+                if (typeof gainParam.setTargetAtTime === 'function') {
+                    gainParam.setTargetAtTime(lfoAmplitude, now, 0.1);
                 } else {
-                    entry.gain.gain.value = effectiveVolume;
+                    gainParam.value = lfoAmplitude;
+                }
+
+                // ノイズのベースとなるゲインを設定
+                const mixerGainParam = mixerGainRef.current?.gain;
+                if (mixerGainParam) {
+                    if (typeof mixerGainParam.cancelScheduledValues === 'function') {
+                        mixerGainParam.cancelScheduledValues(now);
+                    }
+                    if (typeof mixerGainParam.setValueAtTime === 'function') {
+                        mixerGainParam.setValueAtTime(mixerGainParam.value, now);
+                    }
+                    if (typeof mixerGainParam.setTargetAtTime === 'function') {
+                        mixerGainParam.setTargetAtTime(baseGain, now, 0.1);
+                    } else {
+                        mixerGainParam.value = baseGain;
+                    }
                 }
             }
+
+            // ATMOS マスター (環境音全体)
+            for (const layer of s.soundscapeLayers) {
+                const entry = soundscapeSourcesRef.current.get(layer.id);
+                if (entry) {
+                    const effectiveVolume = layer.volume * s.master.ambientMasterVolume;
+                    const now = ctx.currentTime;
+                    // デクリック処理: 現在値を起点としてロックし、波形の不連続ジャンプを防止
+                    if (typeof entry.gain.gain.cancelScheduledValues === 'function') {
+                        entry.gain.gain.cancelScheduledValues(now);
+                    }
+                    if (typeof entry.gain.gain.setValueAtTime === 'function') {
+                        entry.gain.gain.setValueAtTime(entry.gain.gain.value, now);
+                    }
+                    if (typeof entry.gain.gain.setTargetAtTime === 'function') {
+                        entry.gain.gain.setTargetAtTime(effectiveVolume, now, 0.05);
+                    } else {
+                        entry.gain.gain.value = effectiveVolume;
+                    }
+                }
+            }
+        } catch (err) {
+            addLog('error', `[syncAudioParams] エラー: ${String(err)}`);
         }
-      } catch (err) {
-        addLog('error', `[syncAudioParams] エラー: ${String(err)}`);
-      }
     }, []);
 
     // === 状態変更時にオーディオパラメータを同期 ===
@@ -708,80 +708,80 @@ export function AudioEngineProvider({ children }: { children: ReactNode }) {
 
     // === 再生 ===
     const play = useCallback(async () => {
-      try {
-        addLog('info', '[play] 再生処理を開始します...');
-        // [1] 先にバックグラウンド再生を開始 (ジェスチャー有効期限対策)
-        // ensureAudioContext の async 処理を待つ前に play() を呼ぶことで、ユーザーアクションとして確実に認識させる
-        if (!backgroundAudioRef.current) {
-            const audio = new Audio();
-            audio.src = createSilentAudioBlobUrl();
-            audio.preload = 'auto';
-            audio.setAttribute('playsinline', 'true');
-            audio.loop = true;
-            audio.volume = 0.01;
-            // DOM に追加（Android Chrome でのバックグラウンド維持に必須）
-            audio.style.display = 'none';
-            document.body.appendChild(audio);
-            backgroundAudioRef.current = audio;
-        }
-
-        const audioPlayPromise = backgroundAudioRef.current.play().catch(err => {
-            addLog('warn', `[backgroundAudio] play() 失敗: ${String(err)}`);
-        });
-
-        // [2] AudioContext の準備 (awaitあり)
-        const ctx = await ensureAudioContext();
-        if (ctx.state === 'suspended') {
-            await ctx.resume();
-        }
-
-        // [3] AudioContext への接続 (初回のみ)
-        if (!backgroundSourceRef.current && backgroundAudioRef.current) {
-            const source = ctx.createMediaElementSource(backgroundAudioRef.current);
-            const gain = ctx.createGain();
-            gain.gain.value = 1.0;
-            source.connect(gain); // B4: 接続漏れ修正
-            if (reverbProcessorRef.current) {
-                gain.connect(reverbProcessorRef.current.input);
-            } else if (fadeControllerRef.current) {
-                gain.connect(fadeControllerRef.current.input);
-            }
-            backgroundSourceRef.current = source;
-            backgroundGainRef.current = gain;
-        }
-
-        await audioPlayPromise;
-        const currentState = stateRef.current;
-        // タイトルの決定（現在のプリセット名を取得）
-        let currentTitle = 'Your Custom Mix';
-        if (currentState.activePresetId) {
-            const p = BUILT_IN_PRESETS.find(p => p.id === currentState.activePresetId) || customPresets.find(p => p.id === currentState.activePresetId);
-            if (p) currentTitle = p.name;
-        }
-
         try {
-            await startAudioForegroundService('SoundNest', currentTitle);
-            const status = await getAudioForegroundStatus();
-            addLog('info', `[ForegroundService] started with title: ${currentTitle}, running=${status.running}`);
-        } catch (err) {
-            addLog('warn', `[ForegroundService] start failed: ${String(err)}`);
-        }
+            addLog('info', '[play] 再生処理を開始します...');
+            // [1] 先にバックグラウンド再生を開始 (ジェスチャー有効期限対策)
+            // ensureAudioContext の async 処理を待つ前に play() を呼ぶことで、ユーザーアクションとして確実に認識させる
+            if (!backgroundAudioRef.current) {
+                const audio = new Audio();
+                audio.src = createSilentAudioBlobUrl();
+                audio.preload = 'auto';
+                audio.setAttribute('playsinline', 'true');
+                audio.loop = true;
+                audio.volume = 0.01;
+                // DOM に追加（Android Chrome でのバックグラウンド維持に必須）
+                audio.style.display = 'none';
+                document.body.appendChild(audio);
+                backgroundAudioRef.current = audio;
+            }
 
-        addLog('info', `▶ 再生開始 (fade: ${currentState.fade.enabled ? `有効 ${currentState.fade.duration}s` : '無効'})`);
-        syncAudioParams(currentState);
-        isPlayingRef.current = true; // onstatechange が参照する Ref を即座に更新
-        dispatch({ type: 'SET_PLAYING', payload: true });
-        // フェード有効時はフェードイン、無効時は即再生
-        if (currentState.fade.enabled) {
-            await fadeControllerRef.current?.fadeIn();
-        } else {
-            fadeControllerRef.current?.unmute();
+            const audioPlayPromise = backgroundAudioRef.current.play().catch(err => {
+                addLog('warn', `[backgroundAudio] play() 失敗: ${String(err)}`);
+            });
+
+            // [2] AudioContext の準備 (awaitあり)
+            const ctx = await ensureAudioContext();
+            if (ctx.state === 'suspended') {
+                await ctx.resume();
+            }
+
+            // [3] AudioContext への接続 (初回のみ)
+            if (!backgroundSourceRef.current && backgroundAudioRef.current) {
+                const source = ctx.createMediaElementSource(backgroundAudioRef.current);
+                const gain = ctx.createGain();
+                gain.gain.value = 1.0;
+                source.connect(gain); // B4: 接続漏れ修正
+                if (reverbProcessorRef.current) {
+                    gain.connect(reverbProcessorRef.current.input);
+                } else if (fadeControllerRef.current) {
+                    gain.connect(fadeControllerRef.current.input);
+                }
+                backgroundSourceRef.current = source;
+                backgroundGainRef.current = gain;
+            }
+
+            await audioPlayPromise;
+            const currentState = stateRef.current;
+            // タイトルの決定（現在のプリセット名を取得）
+            let currentTitle = 'Your Custom Mix';
+            if (currentState.activePresetId) {
+                const p = BUILT_IN_PRESETS.find(p => p.id === currentState.activePresetId) || customPresets.find(p => p.id === currentState.activePresetId);
+                if (p) currentTitle = p.name;
+            }
+
+            try {
+                await startAudioForegroundService('SoundNest', currentTitle);
+                const status = await getAudioForegroundStatus();
+                addLog('info', `[ForegroundService] started with title: ${currentTitle}, running=${status.running}`);
+            } catch (err) {
+                addLog('warn', `[ForegroundService] start failed: ${String(err)}`);
+            }
+
+            addLog('info', `▶ 再生開始 (fade: ${currentState.fade.enabled ? `有効 ${currentState.fade.duration}s` : '無効'})`);
+            syncAudioParams(currentState);
+            isPlayingRef.current = true; // onstatechange が参照する Ref を即座に更新
+            dispatch({ type: 'SET_PLAYING', payload: true });
+            // フェード有効時はフェードイン、無効時は即再生
+            if (currentState.fade.enabled) {
+                await fadeControllerRef.current?.fadeIn();
+            } else {
+                fadeControllerRef.current?.unmute();
+            }
+        } catch (err) {
+            addLog('error', `[play] 再生処理中にエラーが発生しました: ${String(err)}`);
+            isPlayingRef.current = false;
+            dispatch({ type: 'SET_PLAYING', payload: false });
         }
-      } catch (err) {
-        addLog('error', `[play] 再生処理中にエラーが発生しました: ${String(err)}`);
-        isPlayingRef.current = false;
-        dispatch({ type: 'SET_PLAYING', payload: false });
-      }
     }, [ensureAudioContext, syncAudioParams]);
 
     // === 停止 ===
